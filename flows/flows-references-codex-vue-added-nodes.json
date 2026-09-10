@@ -1,0 +1,1311 @@
+[
+    {
+        "id": "53ff7c7b238e4727",
+        "type": "inject",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Initialize runtime environment on deploy",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            },
+            {
+                "p": "_vueDeployInit",
+                "v": "true",
+                "vt": "bool"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.2,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 170,
+        "y": 300,
+        "wires": [
+            [
+                "8344d78c784d16e9"
+            ]
+        ]
+    },
+    {
+        "id": "ce268b52b45e872a",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Environment init gate",
+        "func": "if (msg._vueDeployInit === true) return null;\nreturn msg;",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 650,
+        "y": 240,
+        "wires": [
+            [
+                "fb3b71e1d4d5fa2a"
+            ]
+        ]
+    },
+    {
+        "id": "a60f4b6bb96dcfab",
+        "type": "comment",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] SPA + API HTTP",
+        "info": "Frontend Vue completo. Todas las llamadas de negocio son relativas a ./api/. El usuario se obtiene desde /_auth/user. Los endpoints adaptan las peticiones HTTP al contrato msg.submission del backend existente.",
+        "x": 3780,
+        "y": 80,
+        "wires": [],
+        "width": 520
+    },
+    {
+        "id": "6d1af165f4872271",
+        "type": "axet-spa-app",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] References Codex Vue",
+        "appId": "references-codex",
+        "appName": "References Codex",
+        "mode": "http",
+        "entryFile": "index.html",
+        "gitUrl": "",
+        "gitBranch": "main",
+        "gitSubdir": "",
+        "gitInstallCmd": "npm ci",
+        "gitBuildCmd": "npm run build",
+        "gitOutputDir": "dist",
+        "gitArtifactOnly": false,
+        "authType": "none",
+        "customOkta": false,
+        "issuer": "",
+        "clientId": "",
+        "clientSecret": "",
+        "audience": "",
+        "scopes": "",
+        "redirectUri": "",
+        "sessionExpireTimeInMinutes": 90,
+        "accessControl": "auto",
+        "accessRulesCollection": "",
+        "accessUsersCollection": "",
+        "accessProjectsCollection": "",
+        "accessCacheTtl": 60,
+        "accessBypassRoles": "",
+        "sseRetentionMs": 60000,
+        "sseMaxSessions": 5000,
+        "sseMaxOutboxBytes": 262144,
+        "x": 3980,
+        "y": 130,
+        "wires": []
+    },
+    {
+        "id": "fcd2a6fc507d6184",
+        "type": "http response",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] HTTP response",
+        "statusCode": "",
+        "headers": {},
+        "x": 4700,
+        "y": 920,
+        "wires": []
+    },
+    {
+        "id": "71535c0e7a09d134",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Binary download response",
+        "func": "const path = require('path');\n\nfunction contentType(fileName) {\n  const ext = path.extname(String(fileName || '')).toLowerCase();\n  const types = {\n    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',\n    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',\n    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',\n    '.zip': 'application/zip',\n    '.pdf': 'application/pdf',\n    '.json': 'application/json; charset=utf-8',\n    '.csv': 'text/csv; charset=utf-8',\n    '.txt': 'text/plain; charset=utf-8'\n  };\n  return types[ext] || 'application/octet-stream';\n}\n\nfunction asciiFallback(fileName) {\n  const fallback = String(fileName || 'download')\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[\\r\\n\"\\\\/]/g, '_')\n    .replace(/[^\\x20-\\x7E]/g, '_')\n    .trim();\n  return fallback || 'download';\n}\n\nconst download = msg.downloadFileSubmission || {};\nconst fileName = String(download.fileName || msg.generatedFilename || msg.generatedExcelFilename || 'download.bin').trim();\nlet data = download.data;\n\nif (data === undefined || data === null) {\n  msg.statusCode = 500;\n  msg.headers = {\n    ...(msg.headers || {}),\n    'Content-Type': 'application/json; charset=utf-8',\n    'Cache-Control': 'no-store'\n  };\n  msg.payload = { ok: false, error: 'DOWNLOAD_NOT_READY', message: 'El fichero no se ha podido preparar para descarga.' };\n  return msg;\n}\n\nif (!Buffer.isBuffer(data)) {\n  if (data?.type === 'Buffer' && Array.isArray(data.data)) data = Buffer.from(data.data);\n  else if (Array.isArray(data)) data = Buffer.from(data);\n  else data = Buffer.from(String(data));\n}\n\nconst fallback = asciiFallback(fileName);\nconst encoded = encodeURIComponent(fileName).replace(/['()]/g, escape).replace(/\\*/g, '%2A');\n\nmsg.statusCode = 200;\nmsg.headers = {\n  ...(msg.headers || {}),\n  'Content-Type': contentType(fileName),\n  'Content-Disposition': `attachment; filename=\"${fallback}\"; filename*=UTF-8''${encoded}`,\n  'Content-Length': String(data.length),\n  'Cache-Control': 'private, no-store, max-age=0',\n  'X-Content-Type-Options': 'nosniff'\n};\nmsg.payload = data;\ndelete msg.downloadFileSubmission;\nreturn msg;\n",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 4420,
+        "y": 1040,
+        "wires": [
+            [
+                "fcd2a6fc507d6184"
+            ]
+        ]
+    },
+    {
+        "id": "c37080e9ee92da16",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] JSON action response",
+        "func": "function normalizePayload(value) {\n  if (value === undefined) return null;\n  if (Buffer.isBuffer(value)) return { type: 'Buffer', length: value.length };\n  return value;\n}\n\nconst raw = normalizePayload(msg.payload);\nconst explicitError = msg.error?.message || msg.error || raw?.error || null;\nconst ok = !explicitError;\n\nmsg.statusCode = Number(msg.statusCode || (ok ? 200 : 500));\nmsg.headers = {\n  ...(msg.headers || {}),\n  'Content-Type': 'application/json; charset=utf-8',\n  'Cache-Control': 'no-store'\n};\nmsg.payload = ok\n  ? { ok: true, data: raw, sessionId: msg.sessionId || msg.submission?.sessionId || null }\n  : { ok: false, error: 'FLOW_ACTION_FAILED', message: String(explicitError), data: raw };\nreturn msg;\n",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 4420,
+        "y": 1100,
+        "wires": [
+            [
+                "fcd2a6fc507d6184"
+            ]
+        ]
+    },
+    {
+        "id": "6da064a51d4d719c",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Error response",
+        "func": "const payload = msg.payload && typeof msg.payload === 'object' && !Buffer.isBuffer(msg.payload)\n  ? msg.payload\n  : null;\nconst message = String(\n  payload?.message ||\n  payload?.error?.message ||\n  payload?.error ||\n  msg.error?.message ||\n  msg.error ||\n  'La operación no se ha podido completar.'\n);\n\nmsg.statusCode = Number(msg.statusCode || 400);\nmsg.headers = {\n  ...(msg.headers || {}),\n  'Content-Type': 'application/json; charset=utf-8',\n  'Cache-Control': 'no-store'\n};\nmsg.payload = {\n  ok: false,\n  error: payload?.error && typeof payload.error === 'string' ? payload.error : 'REQUEST_FAILED',\n  message,\n  details: payload?.details || null\n};\nreturn msg;\n",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 4420,
+        "y": 1160,
+        "wires": [
+            [
+                "fcd2a6fc507d6184"
+            ]
+        ]
+    },
+    {
+        "id": "6299581722036e53",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Normalize MANA response",
+        "func": "function text(value) {\n  return value === undefined || value === null ? '' : String(value).trim();\n}\n\nconst data = msg.payload?.data && typeof msg.payload.data === 'object'\n  ? msg.payload.data\n  : (msg.payload && typeof msg.payload === 'object' && !Buffer.isBuffer(msg.payload) ? msg.payload : {});\nconst result = msg.result || msg.deleteSelection || null;\n\nconst statusText = text(\n  result?.statusText ||\n  data.crudStatus ||\n  data.deleteStatus ||\n  data.resultadoOperacion ||\n  data.message\n);\nconst failure = Boolean(msg.error) || result?.ok === false || /^\\s*[❌]/.test(statusText) || /^\\s*error\\b/i.test(statusText);\n\nconst response = {\n  ok: !failure,\n  action: result?.action || msg.crud?.action || data.crudAction || null,\n  status: statusText || (failure ? 'Error' : 'Operación completada'),\n  opportunityId: result?.opportunityId || msg.crud?.opportunityId || data.opportunityId || data.deleteOpportunityId || null,\n  opportunity: {\n    title: result?.title || msg.crud?.selectedOpportunity?.title || null,\n    sector: result?.sector || msg.crud?.selectedOpportunity?.sector || data.sector || null,\n    unit: result?.unit || msg.crud?.selectedOpportunity?.unit || data.unidadOportunidad || null,\n    customer: result?.customer || msg.crud?.selectedOpportunity?.customerName || data.cliente || null,\n    information: result?.opportunityInfoTexto || data.opportunityInfoTexto || data.deleteOpportunityInfo || data.resultadoOportunidad || null\n  },\n  sharePoint: {\n    folderName: result?.folderName || msg.crud?.folderName || data.deleteFolderName || null,\n    folderPath: result?.folderPath || msg.crud?.folderPath || data.deleteFolderPath || null,\n    checkedAt: result?.checkedAt || result?.preparedAt || null,\n    text: result?.sharePointText || data.sharePointCheckTexto || data.deleteFilesText || data.resultadoSharePoint || null,\n    hasPdf: result?.hasPdf,\n    hasCsv: result?.hasCsv,\n    hasOpportunityInfo: result?.hasOpportunityInfo,\n    pdfFiles: result?.pdfFiles || [],\n    csvFiles: result?.csvFiles || [],\n    files: result?.fileNames || [],\n    fileCount: result?.fileCount ?? (Array.isArray(result?.fileNames) ? result.fileNames.length : null)\n  },\n  delete: {\n    prepared: Boolean(msg.deleteSelection || data.deleteFileChoices),\n    choices: result?.deleteFileChoices || data.deleteFileChoices || [],\n    deletedFilename: result?.deletedFilename || msg.crud?.deletedFilename || null\n  },\n  index: {\n    summary: result?.indexStatusResumen || data.indexStatusResumen || data.resultadoIndice || null\n  }\n};\n\n// Upload-success functions put the uploaded filenames only in the status text; preserve a compact\n// raw block for any additional action-specific values, while deliberately excluding selector maps.\nconst permitted = [\n  'crudStatus', 'sharePointCheckTexto', 'indexStatusResumen',\n  'deleteStatus', 'deleteFilesText', 'deleteFileCountLabel',\n  'resultadoOperacion', 'resultadoSharePoint', 'resultadoIndice'\n];\nresponse.details = {};\nfor (const key of permitted) {\n  if (data[key] !== undefined && data[key] !== '') response.details[key] = data[key];\n}\nif (!Object.keys(response.details).length) delete response.details;\n\nmsg.statusCode = Number(msg.statusCode || (failure ? 400 : 200));\nmsg.headers = {\n  ...(msg.headers || {}),\n  'Content-Type': 'application/json; charset=utf-8',\n  'Cache-Control': 'no-store'\n};\nmsg.payload = response;\nreturn msg;\n",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 4500,
+        "y": 1220,
+        "wires": [
+            [
+                "fcd2a6fc507d6184"
+            ]
+        ]
+    },
+    {
+        "id": "7103c1c496458fa4",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Cleanup MANA staged uploads",
+        "func": "const fs = require('fs');\nconst path = require('path');\n\nconst ROOT = '/internal-storage-files/files/_vue-uploads';\n\nfunction normalizeText(value) {\n  return String(value ?? '').normalize('NFC').replace(/[\\u200B-\\u200D\\uFEFF]/g, '').trim();\n}\nfunction safePart(value, fallback = '') {\n  return normalizeText(value).replace(/[^a-zA-Z0-9_.@-]+/g, '_').replace(/^\\.+/, '').slice(0, 180) || fallback;\n}\nfunction identity() {\n  const sec = msg.__axetFlowsSecurityContext || {};\n  const idp = sec.externalIdpUserInfo || {};\n  return normalizeText(\n    msg._vueSessionOwner ||\n    idp.preferred_username ||\n    idp.email ||\n    idp.sub ||\n    sec.login ||\n    ''\n  );\n}\n\nconst ids = Array.isArray(msg._vueUploadIds)\n  ? msg._vueUploadIds.map(normalizeText).filter((id) => /^[a-f0-9]{24,64}$/i.test(id))\n  : [];\nconst userKey = identity();\n\nif (ids.length && userKey) {\n  const userRoot = path.resolve(path.join(ROOT, safePart(userKey, 'user')));\n  for (const uploadId of ids) {\n    const target = path.resolve(path.join(userRoot, uploadId));\n    if (!target.startsWith(userRoot + path.sep)) continue;\n    try {\n      fs.rmSync(target, { recursive: true, force: true });\n    } catch (err) {\n      node.warn(`Vue upload cleanup ${uploadId}: ${err.message}`);\n    }\n  }\n}\n\ndelete msg._vueUploadIds;\nreturn msg;\n",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 4280,
+        "y": 1220,
+        "wires": [
+            [
+                "6299581722036e53"
+            ]
+        ]
+    },
+    {
+        "id": "e88533a3fa718cfc",
+        "type": "comment",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] API de lectura",
+        "info": "Bootstrap, oportunidades paginadas, sesión activa, progreso, resultados y logs.",
+        "x": 3780,
+        "y": 220,
+        "wires": [],
+        "width": 460
+    },
+    {
+        "id": "27ab8a9b126402d2",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Read API router",
+        "func": "const fs = require('fs');\nconst path = require('path');\n\nconst FILES_ROOT = '/internal-storage-files/files';\nconst ACTIVE_DIR = path.join(FILES_ROOT, '_active-sessions');\nconst OWNER_DIR = path.join(FILES_ROOT, '_vue-session-owners');\nconst WORKSPACE_DIR = path.join(FILES_ROOT, 'codex-workspace');\nconst PROCESSED_DIR = path.join(FILES_ROOT, 'procesado');\nconst TEMPLATES_DIR = path.join(FILES_ROOT, 'plantillas');\nconst OPPORTUNITIES_INDEX = path.join(FILES_ROOT, 'opportunities_index.json');\nconst OPPORTUNITIES_FILTERS = path.join(FILES_ROOT, 'opportunities_filters.json');\n\nfunction normalizeText(value) {\n  return String(value ?? '')\n    .normalize('NFC')\n    .replace(/[\\u200B-\\u200D\\uFEFF]/g, '')\n    .replace(/\\u00A0/g, ' ')\n    .trim();\n}\n\nfunction safeName(value) {\n  return normalizeText(value).replace(/[^a-zA-Z0-9_.@-]+/g, '_').slice(0, 180);\n}\n\nfunction readJson(filePath, fallback = null) {\n  try {\n    if (!filePath || !fs.existsSync(filePath)) return fallback;\n    const raw = fs.readFileSync(filePath, 'utf8').trim();\n    return raw ? JSON.parse(raw) : fallback;\n  } catch (err) {\n    node.warn(`Vue API read JSON failed ${filePath}: ${err.message}`);\n    return fallback;\n  }\n}\n\nfunction asRoles(value) {\n  if (Array.isArray(value)) return value.map(String);\n  return String(value || '')\n    .split(/[;,\\s]+/)\n    .map((item) => item.trim())\n    .filter(Boolean);\n}\n\nfunction identity(currentMsg) {\n  const security = currentMsg.__axetFlowsSecurityContext || {};\n  const idp = security.externalIdpUserInfo || {};\n  const userKey = normalizeText(\n    idp.preferred_username ||\n    idp.email ||\n    idp.sub ||\n    security.login ||\n    currentMsg.req?.user?.email ||\n    currentMsg.req?.user?.id ||\n    currentMsg.userId ||\n    ''\n  );\n  const axetUserId = normalizeText(security.axetUserId || currentMsg.axet_user_id || '');\n  const roles = asRoles(security.userRoles || security.roles || currentMsg.req?.user?.roles || []);\n  const isAdmin = roles.some((role) => /(^|_)SUPER_ADMIN$|(^|_)ADMIN$/i.test(role));\n  return { userKey, axetUserId, roles, isAdmin };\n}\n\nfunction respond(statusCode, payload) {\n  msg.statusCode = statusCode;\n  msg.headers = {\n    ...(msg.headers || {}),\n    'Content-Type': 'application/json; charset=utf-8',\n    'Cache-Control': 'no-store'\n  };\n  msg.payload = payload;\n  return msg;\n}\n\nfunction requireIdentity() {\n  const who = identity(msg);\n  if (!who.userKey || who.userKey === 'anonymous') {\n    respond(401, { ok: false, error: 'AUTH_REQUIRED', message: 'No se ha podido resolver el usuario autenticado.' });\n    return null;\n  }\n  return who;\n}\n\nfunction canonicalSessionId(value) {\n  const sessionId = normalizeText(value);\n  return /^[a-zA-Z0-9_-]{8,128}$/.test(sessionId) ? sessionId : '';\n}\n\nfunction sessionPaths(sessionId) {\n  const projectPath = path.join(WORKSPACE_DIR, sessionId);\n  const docsPath = path.join(projectPath, 'codex-docs');\n  return {\n    projectPath,\n    docsPath,\n    statePath: path.join(docsPath, 'SESSION_STATE.json'),\n    answersPath: path.join(docsPath, 'output', 'respuestas.json'),\n    reportPath: path.join(docsPath, 'EXECUTION_REPORT.md'),\n    planPath: path.join(docsPath, 'PLAN.md'),\n    logPath: path.join(projectPath, `codex-unified-${sessionId}.log`)\n  };\n}\n\nfunction getActive(who) {\n  return readJson(path.join(ACTIVE_DIR, `${who.userKey}.json`), null);\n}\n\nfunction ownsSession(sessionId, who, state) {\n  if (who.isAdmin) return true;\n\n  const owner = readJson(path.join(OWNER_DIR, `${safeName(sessionId)}.json`), null);\n  if (owner) {\n    if (normalizeText(owner.userKey).toLowerCase() === who.userKey.toLowerCase()) return true;\n    if (who.axetUserId && normalizeText(owner.axetUserId) === who.axetUserId) return true;\n  }\n\n  const active = getActive(who);\n  if (normalizeText(active?.sessionId) === sessionId) return true;\n\n  const stateUserKey = normalizeText(\n    state?.context?.userKey ||\n    state?.context?.user ||\n    state?.monitoring?.user ||\n    ''\n  );\n  const stateUserId = normalizeText(\n    state?.context?.axet_user_id ||\n    state?.context?.axetUserId ||\n    state?.monitoring?.axetUserId ||\n    ''\n  );\n\n  return (\n    (!!stateUserKey && stateUserKey.toLowerCase() === who.userKey.toLowerCase()) ||\n    (!!who.axetUserId && !!stateUserId && stateUserId === who.axetUserId)\n  );\n}\n\nfunction readAuthorizedSession(rawSessionId, who) {\n  const sessionId = canonicalSessionId(rawSessionId);\n  if (!sessionId) return { error: respond(400, { ok: false, error: 'INVALID_SESSION_ID' }) };\n\n  const paths = sessionPaths(sessionId);\n  const state = readJson(paths.statePath, null);\n  if (!state) return { error: respond(404, { ok: false, error: 'SESSION_NOT_FOUND', sessionId }) };\n  if (!ownsSession(sessionId, who, state)) {\n    return { error: respond(403, { ok: false, error: 'SESSION_FORBIDDEN', sessionId }) };\n  }\n\n  return { sessionId, paths, state };\n}\n\nfunction number(value, fallback = 0) {\n  const result = Number(value);\n  return Number.isFinite(result) ? result : fallback;\n}\n\nfunction isStopped(state) {\n  return Boolean(\n    state?.execution?.stopped === true ||\n    state?.execution?.stopRequested === true ||\n    state?.execution?.reason === 'manual-stop' ||\n    state?.runtime?.manualStop === true\n  );\n}\n\nfunction hasExplicitFailure(state) {\n  const phaseStatus = state?.progressView?.phaseStatus || {};\n  return Boolean(\n    state?.runtime?.error ||\n    state?.execution?.error ||\n    phaseStatus.execute === 'error' ||\n    phaseStatus.report === 'error' ||\n    state?.execution?.reason === 'worker-error' ||\n    state?.execution?.reason === 'spawn-error' ||\n    state?.execution?.reason === 'implementation-error'\n  );\n}\n\nfunction isReady(state, answersExist = false) {\n  const explicitSuccess = Boolean(\n    state?.resultReady === true ||\n    state?.readyToRedirect === true ||\n    state?.result?.success === true ||\n    (state?.runtime?.completed === true && state?.runtime?.success === true)\n  );\n  const legacyCompletedAnswers = Boolean(\n    answersExist &&\n    (state?.execution?.finished === true || state?.runtime?.completed === true) &&\n    state?.runtime?.success !== false &&\n    !hasExplicitFailure(state)\n  );\n  return explicitSuccess || legacyCompletedAnswers;\n}\n\nfunction isTerminal(state, ready, stopped) {\n  return Boolean(\n    ready ||\n    stopped ||\n    hasExplicitFailure(state) ||\n    state?.runtime?.completed === true ||\n    state?.execution?.finished === true\n  );\n}\n\nfunction isFailed(state, ready, stopped, terminal) {\n  if (stopped) return false;\n  if (hasExplicitFailure(state)) return true;\n  if (!terminal) return false;\n  if (state?.runtime?.success === false) return true;\n  return !ready;\n}\n\nfunction taskData(state) {\n  const candidates = [state?.tasksLive, state?.tasks].filter(Boolean);\n  candidates.sort((a, b) => number(b?.completed) - number(a?.completed));\n  const tasks = candidates[0] || {};\n  const completed = number(tasks.completed);\n  const total = number(tasks.total);\n  return { completed, total, remaining: Math.max(0, number(tasks.remaining, total - completed)), batch: number(tasks.batch), live: tasks.live === true };\n}\n\nfunction sourceSummary(state) {\n  const summary = state?.context?.sourceSummary || state?.input?.sourceSummary || state?.sourceSummary || {};\n  const result = {};\n  for (const source of ['processed', 'opportunity', 'uploads']) {\n    const entry = summary?.[source] || {};\n    result[source] = {\n      active: entry.active === true,\n      fileCount: number(entry.fileCount, Array.isArray(entry.files) ? entry.files.length : 0),\n      files: Array.isArray(entry.files)\n        ? entry.files.slice(0, 100).map((file) => ({\n            name: normalizeText(file?.logicalName || file?.name || file?.originalName || path.basename(file?.localPath || '')),\n            size: number(file?.size)\n          }))\n        : [],\n      errors: Array.isArray(entry.errors) ? entry.errors.slice(0, 20) : [],\n      missing: Array.isArray(entry.missing) ? entry.missing.slice(0, 20) : []\n    };\n  }\n  return result;\n}\n\nfunction readTail(filePath, maxLines = 160, maxBytes = 180000) {\n  try {\n    if (!filePath || !fs.existsSync(filePath)) return '';\n    const stat = fs.statSync(filePath);\n    const size = Math.min(stat.size, maxBytes);\n    const fd = fs.openSync(filePath, 'r');\n    const buffer = Buffer.alloc(size);\n    fs.readSync(fd, buffer, 0, size, Math.max(0, stat.size - size));\n    fs.closeSync(fd);\n    return buffer.toString('utf8').split(/\\r?\\n/).slice(-maxLines).join('\\n');\n  } catch (err) {\n    node.warn(`Vue API log tail failed: ${err.message}`);\n    return '';\n  }\n}\n\nfunction summarizeSession(sessionId, state, active) {\n  const tasks = taskData(state || {});\n  const paths = sessionPaths(sessionId);\n  const answersExist = fs.existsSync(paths.answersPath);\n  const stopped = isStopped(state || {});\n  const readyCandidate = isReady(state || {}, answersExist);\n  const terminal = isTerminal(state || {}, readyCandidate, stopped);\n  const failed = isFailed(state || {}, readyCandidate, stopped, terminal);\n  const ready = readyCandidate && !failed && !stopped;\n  const runtimeProgress = number(state?.runtime?.progress, number(state?.progress));\n  const taskProgress = tasks.total > 0 ? Math.round((tasks.completed / tasks.total) * 100) : 0;\n  const progress = Math.max(0, Math.min(100, ready && !failed ? 100 : Math.max(runtimeProgress, taskProgress)));\n\n  return {\n    sessionId,\n    status: normalizeText(\n      state?.runtime?.status ||\n      active?.status ||\n      (stopped ? 'Detenida por el usuario' : failed ? 'Error' : ready ? 'Completado' : 'En ejecución')\n    ),\n    progress,\n    ready,\n    failed,\n    stopped,\n    terminal,\n    canStop: !terminal,\n    tasks,\n    updatedAt: state?.updatedAt || active?.updatedAt || null,\n    createdAt: state?.createdAt || active?.createdAt || null,\n    selectedSources: Array.isArray(state?.context?.selectedSources)\n      ? state.context.selectedSources\n      : (Array.isArray(active?.selectedSources) ? active.selectedSources : []),\n    sourceType: normalizeText(state?.context?.sourceType || active?.sourceType || ''),\n    unit: normalizeText(state?.context?.unidad || state?.context?.unit || active?.unit || ''),\n    project: normalizeText(state?.context?.proyecto || state?.context?.project || active?.project || ''),\n    opportunityId: normalizeText(state?.context?.opportunityId || active?.opportunityId || ''),\n    opportunityTitle: normalizeText(state?.context?.opportunityTitle || active?.opportunityTitle || ''),\n    template: normalizeText(state?.selection?.plantilla || state?.selection?.template || state?.context?.plantilla || ''),\n    outputLanguage: normalizeText(state?.context?.outputLanguage || ''),\n    model: normalizeText(state?.selection?.modelSelect || state?.selection?.model || state?.selection?.requestedModel || ''),\n    reasoning: normalizeText(state?.selection?.reasoningLevel || state?.selection?.reasoning || state?.selection?.requestedReasoning || ''),\n    error: normalizeText(state?.runtime?.error || state?.execution?.error || (failed || stopped ? state?.execution?.reason : '') || '') || null\n  };\n}\n\nfunction choice(value, label) {\n  const cleanValue = normalizeText(value);\n  if (!cleanValue) return null;\n  return { value: cleanValue, label: normalizeText(label || value) || cleanValue };\n}\n\nfunction uniqueChoices(values) {\n  const seen = new Set();\n  const result = [];\n  for (const item of values || []) {\n    const normalized = typeof item === 'object'\n      ? choice(item.value ?? item.id ?? item.name, item.label ?? item.name ?? item.value)\n      : choice(item, item);\n    if (!normalized || seen.has(normalized.value)) continue;\n    seen.add(normalized.value);\n    result.push(normalized);\n  }\n  return result.sort((a, b) => a.label.localeCompare(b.label, 'es'));\n}\n\nfunction scanProcessed() {\n  const units = [];\n  const projectsByUnit = {};\n  try {\n    if (!fs.existsSync(PROCESSED_DIR)) return { units, projectsByUnit };\n    for (const unitDir of fs.readdirSync(PROCESSED_DIR, { withFileTypes: true })) {\n      if (!unitDir.isDirectory()) continue;\n      const unit = unitDir.name;\n      const projects = [];\n      const unitPath = path.join(PROCESSED_DIR, unit);\n      for (const projectDir of fs.readdirSync(unitPath, { withFileTypes: true })) {\n        if (!projectDir.isDirectory()) continue;\n        const markdownPath = path.join(unitPath, projectDir.name, 'markdown');\n        if (fs.existsSync(markdownPath) && fs.statSync(markdownPath).isDirectory()) projects.push(choice(projectDir.name));\n      }\n      if (projects.length) {\n        units.push(choice(unit));\n        projectsByUnit[unit] = uniqueChoices(projects);\n      }\n    }\n  } catch (err) {\n    node.warn(`Vue API processed scan failed: ${err.message}`);\n  }\n  return { units: uniqueChoices(units), projectsByUnit };\n}\n\nfunction scanTemplates() {\n  try {\n    return uniqueChoices(\n      fs.readdirSync(TEMPLATES_DIR)\n        .filter((name) => ['.pptx', '.docx'].includes(path.extname(name).toLowerCase()))\n        .map((name) => choice(name))\n    );\n  } catch (_) {\n    return [];\n  }\n}\n\nfunction getSectorChoices(cacheData, filtersData) {\n  const cached = uniqueChoices(cacheData?.sectores || []);\n  if (cached.length) return cached;\n  return uniqueChoices((filtersData?.sectors || []).map((entry) => choice(entry?.name)));\n}\n\nfunction bootstrap(who) {\n  const cache = global.get('referenceGenerator_selectors_v1') || null;\n  const data = cache?.selectorData || {};\n  const filters = readJson(OPPORTUNITIES_FILTERS, { sectors: [] });\n  const hasProcessedCache = Array.isArray(data.unidadesProcesado) && data.unidadesProcesado.length > 0 &&\n    data.proyectosProcesadoPorUnidad && typeof data.proyectosProcesadoPorUnidad === 'object';\n  const scannedProcessed = hasProcessedCache ? { units: [], projectsByUnit: {} } : scanProcessed();\n\n  const processedUnits = uniqueChoices(hasProcessedCache ? data.unidadesProcesado : scannedProcessed.units);\n  const processedProjectsByUnit = {};\n  const sourceProjects = hasProcessedCache ? data.proyectosProcesadoPorUnidad : scannedProcessed.projectsByUnit;\n  for (const [unit, projects] of Object.entries(sourceProjects)) {\n    processedProjectsByUnit[unit] = uniqueChoices(projects);\n  }\n\n  const templates = uniqueChoices(Array.isArray(data.plantillas) && data.plantillas.length ? data.plantillas : scanTemplates());\n  const active = getActive(who);\n  let activeSummary = null;\n  if (active?.sessionId) {\n    const sessionId = canonicalSessionId(active.sessionId);\n    if (sessionId) activeSummary = summarizeSession(sessionId, readJson(sessionPaths(sessionId).statePath, {}), active);\n  }\n\n  return respond(200, {\n    ok: true,\n    app: {\n      id: 'references-codex',\n      name: 'Codex References Generator',\n      apiVersion: '2.1.0',\n      frontend: 'vue',\n      routes: { newExecution: '#/new', logs: '#/logs', mana: '#/mana', admin: '#/admin' },\n      legacy: { adminFilesAvailable: false, oktaUserSearchAvailable: false }\n    },\n    cache: {\n      ready: Boolean(cache?.selectorData),\n      builtAt: cache?.builtAt || null,\n      buildReason: cache?.buildReason || null,\n      buildMs: number(cache?.buildMs),\n      stats: cache?.stats || null\n    },\n    options: {\n      languages: [choice('Español (ES)'), choice('English (EN)')],\n      sectorOutputFormats: [\n        choice('general', 'General'),\n        choice('sector_publico', 'Sector Público'),\n        choice('sector_privado', 'Sector Privado')\n      ],\n      templates,\n      processedUnits,\n      processedProjectsByUnit,\n      opportunitySectors: getSectorChoices(data, filters),\n      sourcePriority: ['uploads', 'opportunity', 'processed']\n    },\n    active: activeSummary,\n    user: {\n      login: who.userKey,\n      axetUserId: who.axetUserId || null,\n      roles: who.roles\n    }\n  });\n}\n\nfunction normalizeBusinessId(value) {\n  let raw = normalizeText(value).toUpperCase().replace(/\\s+/g, '');\n  if (/^\\d+$/.test(raw)) raw = `OPP-${raw}`;\n  if (/^OPP\\d+$/.test(raw)) raw = `OPP-${raw.slice(3)}`;\n  return raw;\n}\n\nfunction itemView(item) {\n  const opportunityId = normalizeText(item?.opportunityId || item?.id || item?.salesforceOpportunityId || item?.businessOpportunityId);\n  const title = normalizeText(item?.title || item?.name || item?.opportunityName || item?.folderName || opportunityId);\n  const businessOpportunityId = normalizeBusinessId(item?.businessOpportunityId || item?.opportunityBusinessId || item?.OpportunityId__c || '');\n  return {\n    value: opportunityId,\n    label: `${title} (${opportunityId})`,\n    opportunityId,\n    businessOpportunityId,\n    title,\n    sector: normalizeText(item?.sector),\n    unit: normalizeText(item?.unit),\n    customer: normalizeText(item?.customerName || item?.customer),\n    country: normalizeText(item?.country),\n    folderName: normalizeText(item?.sharePointFolder || item?.folderName || item?.folder),\n    documentCount: number(item?.documentCount, Array.isArray(item?.files) ? item.files.length : 0),\n    hasPdf: Boolean(item?.hasPdf || item?.hasProposal),\n    hasCsv: Boolean(item?.hasCsv || item?.hasOpportunityInfo),\n    indexStatus: normalizeText(item?.indexStatus)\n  };\n}\n\nfunction getOpportunityCatalog() {\n  let stat = null;\n  try { stat = fs.statSync(OPPORTUNITIES_INDEX); } catch (_) {}\n  const signature = stat ? `${stat.size}:${stat.mtimeMs}` : 'missing';\n  const key = 'referencesVue_opportunityCatalog_v3';\n  const cached = global.get(key);\n  if (cached?.signature === signature && Array.isArray(cached.items)) return cached;\n\n  const index = readJson(OPPORTUNITIES_INDEX, { items: [] });\n  const items = Array.isArray(index?.items)\n    ? index.items.map(itemView).filter((item) => item.opportunityId)\n    : [];\n\n  const sectors = [];\n  const unitsBySector = {};\n  const customersBySectorUnit = {};\n  const itemsByFilter = {};\n  const itemsByBusinessId = {};\n  const itemsByOpportunityId = {};\n\n  for (const item of items) {\n    if (item.sector) sectors.push(choice(item.sector));\n    if (item.sector && item.unit) {\n      unitsBySector[item.sector] = unitsBySector[item.sector] || [];\n      unitsBySector[item.sector].push(choice(item.unit));\n    }\n    if (item.sector && item.unit && item.customer) {\n      const unitKey = `${item.sector}||${item.unit}`;\n      const filterKey = `${unitKey}||${item.customer}`;\n      customersBySectorUnit[unitKey] = customersBySectorUnit[unitKey] || [];\n      customersBySectorUnit[unitKey].push(choice(item.customer));\n      itemsByFilter[filterKey] = itemsByFilter[filterKey] || [];\n      itemsByFilter[filterKey].push(item);\n    }\n    if (item.businessOpportunityId) {\n      itemsByBusinessId[item.businessOpportunityId] = itemsByBusinessId[item.businessOpportunityId] || [];\n      itemsByBusinessId[item.businessOpportunityId].push(item);\n    }\n    itemsByOpportunityId[item.opportunityId] = item;\n  }\n\n  const catalog = {\n    signature,\n    generatedAt: index?.generatedAt || index?.updatedAt || null,\n    items,\n    sectors: uniqueChoices(sectors),\n    unitsBySector: Object.fromEntries(Object.entries(unitsBySector).map(([key, values]) => [key, uniqueChoices(values)])),\n    customersBySectorUnit: Object.fromEntries(Object.entries(customersBySectorUnit).map(([key, values]) => [key, uniqueChoices(values)])),\n    itemsByFilter,\n    itemsByBusinessId,\n    itemsByOpportunityId\n  };\n  global.set(key, catalog);\n  return catalog;\n}\n\nfunction opportunities() {\n  const query = msg.req?.query || {};\n  const sector = normalizeText(query.sector);\n  const unit = normalizeText(query.unit);\n  const customer = normalizeText(query.customer);\n  const businessId = normalizeBusinessId(query.businessId);\n  const opportunityId = normalizeText(query.opportunityId);\n  const searchText = normalizeText(query.q);\n  const search = searchText.toLowerCase();\n  const page = Math.max(1, Math.floor(number(query.page, 1)));\n  const size = Math.max(1, Math.min(200, Math.floor(number(query.size, 50))));\n  const catalog = getOpportunityCatalog();\n\n  let candidates = [];\n  let requiresFilter = false;\n  let message = '';\n\n  if (opportunityId) {\n    const exact = catalog.itemsByOpportunityId[opportunityId];\n    candidates = exact ? [exact] : [];\n  } else if (businessId) {\n    candidates = catalog.itemsByBusinessId[businessId] || [];\n  } else if (search) {\n    if (search.length < 3) {\n      return respond(400, {\n        ok: false,\n        error: 'SEARCH_TOO_SHORT',\n        message: 'Introduce al menos 3 caracteres para buscar por texto.'\n      });\n    }\n    candidates = catalog.items.filter((item) => [\n      item.title,\n      item.opportunityId,\n      item.businessOpportunityId,\n      item.customer,\n      item.unit,\n      item.sector\n    ].join(' ').toLowerCase().includes(search));\n  } else if (sector && unit && customer) {\n    candidates = catalog.itemsByFilter[`${sector}||${unit}||${customer}`] || [];\n  } else {\n    requiresFilter = true;\n    message = sector && unit\n      ? 'Selecciona un cliente para cargar sus oportunidades.'\n      : sector\n        ? 'Selecciona una unidad para continuar.'\n        : 'Selecciona sector, unidad y cliente, o busca por identificador o texto.';\n  }\n\n  candidates = candidates.slice().sort((a, b) => a.label.localeCompare(b.label, 'es'));\n  const total = candidates.length;\n  const start = (page - 1) * size;\n  const items = candidates.slice(start, start + size);\n\n  return respond(200, {\n    ok: true,\n    requiresFilter,\n    message: message || `${total} oportunidad(es) encontrada(s).`,\n    filters: { sector, unit, customer, businessId, opportunityId, q: searchText },\n    facets: {\n      sectors: catalog.sectors,\n      units: sector ? (catalog.unitsBySector[sector] || []) : [],\n      customers: sector && unit ? (catalog.customersBySectorUnit[`${sector}||${unit}`] || []) : []\n    },\n    items,\n    pagination: { page, size, total, pages: Math.max(1, Math.ceil(total / size)) },\n    index: { generatedAt: catalog.generatedAt, total: catalog.items.length }\n  });\n}\n\nfunction activeSession(who) {\n  const active = getActive(who);\n  if (!active?.sessionId) return respond(200, { ok: true, active: null });\n  const sessionId = canonicalSessionId(active.sessionId);\n  if (!sessionId) return respond(200, { ok: true, active: null });\n  const state = readJson(sessionPaths(sessionId).statePath, {});\n  return respond(200, { ok: true, active: summarizeSession(sessionId, state, active) });\n}\n\nfunction sessionStatus(who) {\n  const resolved = readAuthorizedSession(msg.req?.params?.sessionId, who);\n  if (resolved.error) return resolved.error;\n  const { sessionId, paths, state } = resolved;\n  const active = getActive(who);\n  const summary = summarizeSession(sessionId, state, active?.sessionId === sessionId ? active : null);\n  const globalProgress = global.get(`codexproject${sessionId}`) || null;\n  const globalLogs = Array.isArray(globalProgress?.logs) ? globalProgress.logs.slice(-80) : [];\n\n  return respond(200, {\n    ok: true,\n    session: summary,\n    phases: state?.progressView?.phases || globalProgress?.phases || [],\n    phaseStatus: state?.progressView?.phaseStatus || globalProgress?.phaseStatus || {},\n    sourceSummary: sourceSummary(state),\n    runtime: {\n      status: summary.status,\n      progress: summary.progress,\n      completed: state?.runtime?.completed === true,\n      success: state?.runtime?.success,\n      processingStarted: state?.runtime?.processing_started === true,\n      stale: state?.runtime?.stale === true,\n      staleMinutes: number(state?.runtime?.staleMinutes),\n      error: summary.error\n    },\n    logs: {\n      events: globalLogs,\n      tail: readTail(paths.logPath, 120, 160000)\n    },\n    resultReady: summary.ready,\n    updatedAt: state?.updatedAt || null\n  });\n}\n\nfunction sessionResults(who) {\n  const resolved = readAuthorizedSession(msg.req?.params?.sessionId, who);\n  if (resolved.error) return resolved.error;\n  const { sessionId, paths, state } = resolved;\n  const answers = readJson(paths.answersPath, null);\n  const summary = summarizeSession(sessionId, state, getActive(who));\n  const ready = summary.ready;\n  const outputDir = path.dirname(paths.answersPath);\n  const files = [];\n\n  try {\n    if (fs.existsSync(outputDir)) {\n      for (const entry of fs.readdirSync(outputDir, { withFileTypes: true })) {\n        if (!entry.isFile()) continue;\n        const fullPath = path.join(outputDir, entry.name);\n        const stat = fs.statSync(fullPath);\n        files.push({ name: entry.name, size: stat.size, modifiedAt: stat.mtime.toISOString(), kind: path.extname(entry.name).slice(1).toLowerCase() || 'file' });\n      }\n    }\n  } catch (err) {\n    node.warn(`Vue API result file scan failed: ${err.message}`);\n  }\n\n  const output = state?.output || {};\n  for (const candidate of [output.generatedExcelFilename, output.generatedFilename, state?.monitoring?.generatedFilename]) {\n    const name = normalizeText(candidate);\n    if (name && !files.some((file) => file.name === name)) files.push({ name, size: null, modifiedAt: null, kind: path.extname(name).slice(1).toLowerCase() || 'file' });\n  }\n\n  const responseAvailable = Boolean(summary.ready || answers || summary.terminal);\n\n  return respond(responseAvailable ? 200 : 409, {\n    ok: responseAvailable,\n    session: summary,\n    ready: summary.ready,\n    terminal: summary.terminal,\n    failed: summary.failed,\n    stopped: summary.stopped,\n    success: summary.ready && !summary.failed && !summary.stopped,\n    result: state?.result || null,\n    monitoring: state?.monitoring || null,\n    selection: {\n      template: normalizeText(state?.selection?.plantilla || state?.selection?.template || state?.context?.plantilla),\n      outputType: normalizeText(state?.selection?.outputType || state?.context?.outputType),\n      sectorOutputFormat: normalizeText(state?.selection?.sector_outputformat || state?.context?.sector_outputformat || 'general'),\n      model: normalizeText(state?.selection?.modelSelect || state?.selection?.model || state?.selection?.requestedModel),\n      reasoning: normalizeText(state?.selection?.reasoningLevel || state?.selection?.reasoning || state?.selection?.requestedReasoning)\n    },\n    context: {\n      selectedSources: state?.context?.selectedSources || [],\n      unit: normalizeText(state?.context?.unidad || state?.context?.unit),\n      project: normalizeText(state?.context?.proyecto || state?.context?.project),\n      opportunityId: normalizeText(state?.context?.opportunityId),\n      opportunityTitle: normalizeText(state?.context?.opportunityTitle),\n      customer: normalizeText(state?.context?.opportunityCustomer),\n      outputLanguage: normalizeText(state?.context?.outputLanguage),\n      instruction: normalizeText(state?.context?.instruccionEspecifica)\n    },\n    answers,\n    files,\n    report: fs.existsSync(paths.reportPath) ? fs.readFileSync(paths.reportPath, 'utf8').slice(0, 200000) : null\n  });\n}\n\nfunction logs(who) {\n  const query = msg.req?.query || {};\n  const requestedSessionId = canonicalSessionId(query.sessionId);\n  const maxLines = Math.max(20, Math.min(1000, Math.floor(number(query.lines, 240))));\n\n  if (requestedSessionId) {\n    const resolved = readAuthorizedSession(requestedSessionId, who);\n    if (resolved.error) return resolved.error;\n    return respond(200, {\n      ok: true,\n      session: summarizeSession(requestedSessionId, resolved.state, getActive(who)),\n      tail: readTail(resolved.paths.logPath, maxLines, 800000)\n    });\n  }\n\n  const sessions = [];\n  try {\n    if (fs.existsSync(WORKSPACE_DIR)) {\n      const entries = fs.readdirSync(WORKSPACE_DIR, { withFileTypes: true }).filter((entry) => entry.isDirectory());\n      for (const entry of entries) {\n        const sessionId = canonicalSessionId(entry.name);\n        if (!sessionId) continue;\n        const paths = sessionPaths(sessionId);\n        const state = readJson(paths.statePath, null);\n        if (!state || !ownsSession(sessionId, who, state)) continue;\n        const summary = summarizeSession(sessionId, state, null);\n        let logSize = 0;\n        try { if (fs.existsSync(paths.logPath)) logSize = fs.statSync(paths.logPath).size; } catch (_) {}\n        sessions.push({ ...summary, hasLog: logSize > 0, logSize });\n      }\n    }\n  } catch (err) {\n    node.warn(`Vue API logs scan failed: ${err.message}`);\n  }\n\n  sessions.sort((a, b) => Date.parse(b.updatedAt || b.createdAt || 0) - Date.parse(a.updatedAt || a.createdAt || 0));\n  return respond(200, { ok: true, sessions: sessions.slice(0, 250), adminScope: who.isAdmin });\n}\n\nfunction health(who) {\n  const selectorCache = global.get('referenceGenerator_selectors_v1') || null;\n  return respond(200, {\n    ok: true,\n    service: 'references-codex-vue-api',\n    version: '2.1.0',\n    timestamp: new Date().toISOString(),\n    user: who.userKey,\n    selectorsReady: Boolean(selectorCache?.selectorData),\n    selectorsBuiltAt: selectorCache?.builtAt || null\n  });\n}\n\nconst who = requireIdentity();\nif (!who) return msg;\n\nswitch (msg._apiAction) {\n  case 'health': return health(who);\n  case 'bootstrap': return bootstrap(who);\n  case 'opportunities': return opportunities();\n  case 'active': return activeSession(who);\n  case 'status': return sessionStatus(who);\n  case 'results': return sessionResults(who);\n  case 'logs': return logs(who);\n  case 'mana-bootstrap': return bootstrap(who);\n  default: return respond(404, { ok: false, error: 'API_ACTION_NOT_FOUND', action: msg._apiAction || null });\n}\n",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 4320,
+        "y": 480,
+        "wires": [
+            [
+                "fcd2a6fc507d6184"
+            ]
+        ]
+    },
+    {
+        "id": "849ac4c83c91ae99",
+        "type": "http in",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] GET Health",
+        "url": "/references-codex/api/health",
+        "method": "get",
+        "upload": false,
+        "skipBodyParsing": false,
+        "x": 3600,
+        "y": 230,
+        "wires": [
+            [
+                "89db0f1d3ea57f22"
+            ]
+        ]
+    },
+    {
+        "id": "89db0f1d3ea57f22",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "API: health",
+        "func": "msg._apiAction = \"health\";\nreturn msg;",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 3940,
+        "y": 230,
+        "wires": [
+            [
+                "27ab8a9b126402d2"
+            ]
+        ]
+    },
+    {
+        "id": "61cd0b05150bc8ea",
+        "type": "http in",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] GET Bootstrap",
+        "url": "/references-codex/api/bootstrap",
+        "method": "get",
+        "upload": false,
+        "skipBodyParsing": false,
+        "x": 3600,
+        "y": 260,
+        "wires": [
+            [
+                "c4681a29650426de"
+            ]
+        ]
+    },
+    {
+        "id": "c4681a29650426de",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "API: bootstrap",
+        "func": "msg._apiAction = \"bootstrap\";\nreturn msg;",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 3940,
+        "y": 260,
+        "wires": [
+            [
+                "27ab8a9b126402d2"
+            ]
+        ]
+    },
+    {
+        "id": "6bbb3e9518bec6b2",
+        "type": "http in",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] GET Oportunidades",
+        "url": "/references-codex/api/opportunities",
+        "method": "get",
+        "upload": false,
+        "skipBodyParsing": false,
+        "x": 3600,
+        "y": 320,
+        "wires": [
+            [
+                "647e14e4525f01f3"
+            ]
+        ]
+    },
+    {
+        "id": "647e14e4525f01f3",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "API: opportunities",
+        "func": "msg._apiAction = \"opportunities\";\nreturn msg;",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 3940,
+        "y": 320,
+        "wires": [
+            [
+                "27ab8a9b126402d2"
+            ]
+        ]
+    },
+    {
+        "id": "4ab062b71cc6118a",
+        "type": "http in",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] GET Sesión activa",
+        "url": "/references-codex/api/executions/active",
+        "method": "get",
+        "upload": false,
+        "skipBodyParsing": false,
+        "x": 3600,
+        "y": 380,
+        "wires": [
+            [
+                "88b25ff26fe29020"
+            ]
+        ]
+    },
+    {
+        "id": "88b25ff26fe29020",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "API: active",
+        "func": "msg._apiAction = \"active\";\nreturn msg;",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 3940,
+        "y": 380,
+        "wires": [
+            [
+                "27ab8a9b126402d2"
+            ]
+        ]
+    },
+    {
+        "id": "e2482ee330f0a8f0",
+        "type": "http in",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] GET Estado ejecución",
+        "url": "/references-codex/api/executions/:sessionId",
+        "method": "get",
+        "upload": false,
+        "skipBodyParsing": false,
+        "x": 3600,
+        "y": 440,
+        "wires": [
+            [
+                "4ced70359e50015f"
+            ]
+        ]
+    },
+    {
+        "id": "4ced70359e50015f",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "API: status",
+        "func": "msg._apiAction = \"status\";\nreturn msg;",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 3940,
+        "y": 440,
+        "wires": [
+            [
+                "27ab8a9b126402d2"
+            ]
+        ]
+    },
+    {
+        "id": "e0976f461b0182e3",
+        "type": "http in",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] GET Resultados",
+        "url": "/references-codex/api/executions/:sessionId/results",
+        "method": "get",
+        "upload": false,
+        "skipBodyParsing": false,
+        "x": 3600,
+        "y": 500,
+        "wires": [
+            [
+                "294b1123f6a7a4cb"
+            ]
+        ]
+    },
+    {
+        "id": "294b1123f6a7a4cb",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "API: results",
+        "func": "msg._apiAction = \"results\";\nreturn msg;",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 3940,
+        "y": 500,
+        "wires": [
+            [
+                "27ab8a9b126402d2"
+            ]
+        ]
+    },
+    {
+        "id": "ea9c65af67dcf981",
+        "type": "http in",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] GET Logs",
+        "url": "/references-codex/api/logs",
+        "method": "get",
+        "upload": false,
+        "skipBodyParsing": false,
+        "x": 3600,
+        "y": 560,
+        "wires": [
+            [
+                "175546bc20c1f4fe"
+            ]
+        ]
+    },
+    {
+        "id": "175546bc20c1f4fe",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "API: logs",
+        "func": "msg._apiAction = \"logs\";\nreturn msg;",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 3940,
+        "y": 560,
+        "wires": [
+            [
+                "27ab8a9b126402d2"
+            ]
+        ]
+    },
+    {
+        "id": "e8541dbd381fe0d5",
+        "type": "http in",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] GET MANA bootstrap",
+        "url": "/references-codex/api/mana/bootstrap",
+        "method": "get",
+        "upload": false,
+        "skipBodyParsing": false,
+        "x": 3600,
+        "y": 620,
+        "wires": [
+            [
+                "621a128cb923695d"
+            ]
+        ]
+    },
+    {
+        "id": "621a128cb923695d",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "API: mana-bootstrap",
+        "func": "msg._apiAction = \"mana-bootstrap\";\nreturn msg;",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 3940,
+        "y": 620,
+        "wires": [
+            [
+                "27ab8a9b126402d2"
+            ]
+        ]
+    },
+    {
+        "id": "925b1e289cda6bb1",
+        "type": "comment",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] API de escritura",
+        "info": "Uploads temporales, inicio, parada, liberación y acciones de resultado.",
+        "x": 3780,
+        "y": 700,
+        "wires": [],
+        "width": 460
+    },
+    {
+        "id": "70d5c4e1f8ce76ba",
+        "type": "http in",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] POST upload",
+        "url": "/references-codex/api/uploads",
+        "method": "post",
+        "upload": false,
+        "skipBodyParsing": false,
+        "x": 3600,
+        "y": 750,
+        "wires": [
+            [
+                "6642cd783a36b872"
+            ]
+        ]
+    },
+    {
+        "id": "6642cd783a36b872",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Store temporary upload",
+        "func": "const fs = require('fs');\nconst path = require('path');\nconst crypto = require('crypto');\n\nconst FILES_ROOT = '/internal-storage-files/files';\nconst UPLOAD_ROOT = path.join(FILES_ROOT, '_vue-uploads');\nconst MAX_BYTES = 250 * 1024 * 1024;\n\nfunction normalizeText(value) {\n  return String(value ?? '').normalize('NFC').replace(/[\\u200B-\\u200D\\uFEFF]/g, '').replace(/\\u00A0/g, ' ').trim();\n}\nfunction safePart(value, fallback = '') {\n  const result = normalizeText(value).replace(/[^a-zA-Z0-9_.@-]+/g, '_').replace(/^\\.+/, '').slice(0, 180);\n  return result || fallback;\n}\nfunction identity() {\n  const sec = msg.__axetFlowsSecurityContext || {};\n  const idp = sec.externalIdpUserInfo || {};\n  return {\n    userKey: normalizeText(idp.preferred_username || idp.email || idp.sub || sec.login || msg.req?.user?.email || msg.req?.user?.id || ''),\n    axetUserId: normalizeText(sec.axetUserId || '')\n  };\n}\nfunction respond(statusCode, payload) {\n  msg.statusCode = statusCode;\n  msg.headers = { ...(msg.headers || {}), 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' };\n  msg.payload = payload;\n  return msg;\n}\nfunction parseBuffer(raw) {\n  if (Buffer.isBuffer(raw)) return raw;\n  const text = String(raw || '');\n  if (!text) return null;\n  const comma = text.indexOf(',');\n  const base64 = /^data:/i.test(text) && comma >= 0 ? text.slice(comma + 1) : text;\n  return Buffer.from(base64.replace(/\\s+/g, ''), 'base64');\n}\nfunction purgeExpired(userDir, maxAgeMs = 24 * 60 * 60 * 1000) {\n  try {\n    if (!fs.existsSync(userDir)) return;\n    const cutoff = Date.now() - maxAgeMs;\n    for (const entry of fs.readdirSync(userDir, { withFileTypes: true })) {\n      if (!entry.isDirectory() || !/^[a-f0-9]{24,64}$/i.test(entry.name)) continue;\n      const dir = path.join(userDir, entry.name);\n      const metadata = readJsonSafe(path.join(dir, 'metadata.json'));\n      const createdAt = Date.parse(metadata?.createdAt || '') || fs.statSync(dir).mtimeMs;\n      if (createdAt < cutoff) fs.rmSync(dir, { recursive: true, force: true });\n    }\n  } catch (err) {\n    node.warn(`Vue upload purge failed: ${err.message}`);\n  }\n}\nfunction readJsonSafe(filePath) {\n  try {\n    if (!fs.existsSync(filePath)) return null;\n    const raw = fs.readFileSync(filePath, 'utf8').trim();\n    return raw ? JSON.parse(raw) : null;\n  } catch (_) {\n    return null;\n  }\n}\nfunction writeJsonAtomic(filePath, data) {\n  const tempPath = `${filePath}.${Date.now()}.tmp`;\n  fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf8');\n  fs.renameSync(tempPath, filePath);\n}\n\nconst who = identity();\nif (!who.userKey) return respond(401, { ok: false, error: 'AUTH_REQUIRED' });\n\ntry {\n  const body = msg.payload?.data && typeof msg.payload.data === 'object' ? msg.payload.data : (msg.payload || {});\n  const originalName = safePart(body.name || body.originalName || body.filename, 'upload.bin');\n  const buffer = parseBuffer(body.data || body.base64 || body.content);\n  if (!buffer || !buffer.length) return respond(400, { ok: false, error: 'EMPTY_FILE', message: 'El archivo no contiene datos.' });\n  if (buffer.length > MAX_BYTES) return respond(413, { ok: false, error: 'FILE_TOO_LARGE', maxBytes: MAX_BYTES });\n\n  const uploadId = crypto.randomBytes(18).toString('hex');\n  const userDir = path.join(UPLOAD_ROOT, safePart(who.userKey, 'user'));\n  purgeExpired(userDir);\n  const uploadDir = path.join(userDir, uploadId);\n  fs.mkdirSync(uploadDir, { recursive: true });\n  const filePath = path.join(uploadDir, originalName);\n  fs.writeFileSync(filePath, buffer, { mode: 0o600 });\n\n  const metadata = {\n    uploadId,\n    userKey: who.userKey,\n    axetUserId: who.axetUserId || null,\n    name: originalName,\n    type: normalizeText(body.type || body.mimeType || 'application/octet-stream'),\n    size: buffer.length,\n    scope: normalizeText(body.scope || 'execution'),\n    path: filePath,\n    createdAt: new Date().toISOString()\n  };\n  writeJsonAtomic(path.join(uploadDir, 'metadata.json'), metadata);\n\n  return respond(201, {\n    ok: true,\n    upload: { uploadId, name: metadata.name, type: metadata.type, size: metadata.size, scope: metadata.scope, createdAt: metadata.createdAt }\n  });\n} catch (err) {\n  node.error(`Vue upload failed: ${err.message}`);\n  return respond(500, { ok: false, error: 'UPLOAD_FAILED', message: err.message });\n}\n",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 4060,
+        "y": 750,
+        "wires": [
+            [
+                "fcd2a6fc507d6184"
+            ]
+        ]
+    },
+    {
+        "id": "12bb4d90582bcecd",
+        "type": "http in",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] DELETE upload",
+        "url": "/references-codex/api/uploads/:uploadId",
+        "method": "delete",
+        "upload": false,
+        "skipBodyParsing": false,
+        "x": 3600,
+        "y": 810,
+        "wires": [
+            [
+                "86f080e14531c182"
+            ]
+        ]
+    },
+    {
+        "id": "86f080e14531c182",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Delete temporary upload",
+        "func": "const fs = require('fs');\nconst path = require('path');\n\nconst ROOT = '/internal-storage-files/files/_vue-uploads';\nfunction clean(value) { return String(value || '').trim(); }\nfunction safe(value) { return clean(value).replace(/[^a-zA-Z0-9_.@-]+/g, '_').replace(/^\\.+/, '').slice(0, 180); }\nfunction identity() {\n  const sec = msg.__axetFlowsSecurityContext || {};\n  const idp = sec.externalIdpUserInfo || {};\n  return clean(idp.preferred_username || idp.email || idp.sub || sec.login || msg.req?.user?.email || msg.req?.user?.id || '');\n}\nfunction response(code, payload) {\n  msg.statusCode = code;\n  msg.headers = { ...(msg.headers || {}), 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' };\n  msg.payload = payload;\n  return msg;\n}\nconst userKey = identity();\nif (!userKey) return response(401, { ok: false, error: 'AUTH_REQUIRED' });\nconst uploadId = clean(msg.req?.params?.uploadId);\nif (!/^[a-f0-9]{24,64}$/i.test(uploadId)) return response(400, { ok: false, error: 'INVALID_UPLOAD_ID' });\nconst dir = path.join(ROOT, safe(userKey), uploadId);\nconst metaPath = path.join(dir, 'metadata.json');\ntry {\n  if (!fs.existsSync(metaPath)) return response(404, { ok: false, error: 'UPLOAD_NOT_FOUND' });\n  const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));\n  if (clean(meta.userKey).toLowerCase() !== userKey.toLowerCase()) return response(403, { ok: false, error: 'UPLOAD_FORBIDDEN' });\n  fs.rmSync(dir, { recursive: true, force: true });\n  return response(200, { ok: true, uploadId, deleted: true });\n} catch (err) {\n  return response(500, { ok: false, error: 'UPLOAD_DELETE_FAILED', message: err.message });\n}\n",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 4060,
+        "y": 810,
+        "wires": [
+            [
+                "fcd2a6fc507d6184"
+            ]
+        ]
+    },
+    {
+        "id": "4b1c5c2083511689",
+        "type": "http in",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] POST execution",
+        "url": "/references-codex/api/executions",
+        "method": "post",
+        "upload": false,
+        "skipBodyParsing": false,
+        "x": 3600,
+        "y": 900,
+        "wires": [
+            [
+                "37afa363c9d20205"
+            ]
+        ]
+    },
+    {
+        "id": "37afa363c9d20205",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Accept execution + adapt msg.submission",
+        "func": "const fs = require('fs');\nconst path = require('path');\nconst crypto = require('crypto');\n\nconst FILES_ROOT = '/internal-storage-files/files';\nconst OWNER_DIR = path.join(FILES_ROOT, '_vue-session-owners');\nconst UPLOAD_ROOT = path.join(FILES_ROOT, '_vue-uploads');\nconst WORKSPACE_ROOT = path.join(FILES_ROOT, 'codex-workspace');\nconst PROCESSED_ROOT = path.join(FILES_ROOT, 'procesado');\nconst TEMPLATES_ROOT = path.join(FILES_ROOT, 'plantillas');\nconst INDEX_PATH = path.join(FILES_ROOT, 'opportunities_index.json');\n\nfunction normalizeText(value) {\n  return String(value ?? '')\n    .normalize('NFC')\n    .replace(/[\\u200B-\\u200D\\uFEFF]/g, '')\n    .replace(/\\u00A0/g, ' ')\n    .trim();\n}\nfunction safePart(value, fallback = '') {\n  const result = normalizeText(value)\n    .replace(/[^a-zA-Z0-9_.@-]+/g, '_')\n    .replace(/^\\.+/, '')\n    .slice(0, 180);\n  return result || fallback;\n}\nfunction isWithin(basePath, targetPath) {\n  const relative = path.relative(path.resolve(basePath), path.resolve(targetPath));\n  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));\n}\nfunction catalogSegment(value) {\n  const normalized = normalizeText(value);\n  if (!normalized || normalized === '.' || normalized === '..' || /[\\\\/\\0]/.test(normalized)) return '';\n  return normalized;\n}\nfunction bool(value) {\n  return value === true || value === 1 || value === '1' || value === 'true' || value === 'on';\n}\nfunction identity(currentMsg) {\n  const sec = currentMsg.__axetFlowsSecurityContext || {};\n  const idp = sec.externalIdpUserInfo || {};\n  return {\n    userKey: normalizeText(idp.preferred_username || idp.email || idp.sub || sec.login || currentMsg.req?.user?.email || currentMsg.req?.user?.id || ''),\n    axetUserId: normalizeText(sec.axetUserId || ''),\n    oktaId: normalizeText(sec.oktaId || '')\n  };\n}\nfunction readJson(filePath, fallback = null) {\n  try {\n    if (!filePath || !fs.existsSync(filePath)) return fallback;\n    const raw = fs.readFileSync(filePath, 'utf8').trim();\n    return raw ? JSON.parse(raw) : fallback;\n  } catch (err) {\n    node.warn(`Vue start read JSON failed ${filePath}: ${err.message}`);\n    return fallback;\n  }\n}\nfunction writeJsonAtomic(filePath, data) {\n  fs.mkdirSync(path.dirname(filePath), { recursive: true });\n  const tempPath = `${filePath}.${process.pid || 'fn'}.${Date.now()}.tmp`;\n  fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf8');\n  fs.renameSync(tempPath, filePath);\n}\nfunction response(statusCode, payload) {\n  msg.statusCode = statusCode;\n  msg.headers = { ...(msg.headers || {}), 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' };\n  msg.payload = payload;\n  return msg;\n}\nfunction fail(statusCode, error, message, details) {\n  return [response(statusCode, { ok: false, error, message, details: details || null }), null];\n}\nfunction normalizeUploadIds(body) {\n  const raw = body.uploadIds || body.uploads || [];\n  return (Array.isArray(raw) ? raw : [raw])\n    .map((item) => typeof item === 'object' ? item.uploadId || item.id || item.value : item)\n    .map(normalizeText)\n    .filter(Boolean);\n}\nfunction hydrateUploads(uploadIds, who) {\n  const files = [];\n  for (const uploadId of uploadIds) {\n    if (!/^[a-f0-9]{24,64}$/i.test(uploadId)) throw new Error(`Upload id no válido: ${uploadId}`);\n    const dir = path.join(UPLOAD_ROOT, safePart(who.userKey, 'user'), uploadId);\n    const metadata = readJson(path.join(dir, 'metadata.json'), null);\n    if (!metadata) throw new Error(`Upload no encontrado: ${uploadId}`);\n    if (normalizeText(metadata.userKey).toLowerCase() !== who.userKey.toLowerCase()) throw new Error(`Upload no autorizado: ${uploadId}`);\n    const filePath = path.resolve(normalizeText(metadata.path));\n    if (!filePath.startsWith(path.resolve(dir) + path.sep) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {\n      throw new Error(`Upload no disponible: ${uploadId}`);\n    }\n    files.push({\n      uploadId,\n      name: normalizeText(metadata.name),\n      originalName: normalizeText(metadata.name),\n      type: normalizeText(metadata.type),\n      size: Number(metadata.size || fs.statSync(filePath).size),\n      path: filePath\n    });\n  }\n  return files;\n}\nfunction validateTemplate(template) {\n  const value = normalizeText(template);\n  if (!value) return '';\n  if (value === '__blank_docx__') return value;\n  if (/[\\\\/\\0]/.test(value) || !['.docx', '.pptx'].includes(path.extname(value).toLowerCase())) return '';\n  try {\n    const candidates = fs.readdirSync(TEMPLATES_ROOT, { withFileTypes: true })\n      .filter((entry) => entry.isFile())\n      .map((entry) => entry.name);\n    return candidates.includes(value) ? value : '';\n  } catch (err) {\n    node.warn(`Vue start template scan failed: ${err.message}`);\n    return '';\n  }\n}\n\nconst who = identity(msg);\nif (!who.userKey) return fail(401, 'AUTH_REQUIRED', 'No se ha podido resolver el usuario autenticado.');\n\nconst body = msg.payload?.data && typeof msg.payload.data === 'object' ? msg.payload.data : (msg.payload || {});\nconst includeProcessed = bool(body.includeProcessed);\nconst includeOpportunity = bool(body.includeOpportunity);\nconst includeUploads = bool(body.includeUploads);\nconst selectedSources = [];\nif (includeProcessed) selectedSources.push('processed');\nif (includeOpportunity) selectedSources.push('opportunity');\nif (includeUploads) selectedSources.push('uploads');\nif (!selectedSources.length) return fail(400, 'SOURCE_REQUIRED', 'Activa al menos una fuente.');\n\nconst unidadProcesado = catalogSegment(body.unidadProcesado);\nconst proyectoProcesado = catalogSegment(body.proyectoProcesado);\nif (includeProcessed) {\n  if (!unidadProcesado || !proyectoProcesado) return fail(400, 'PROCESSED_SELECTION_REQUIRED', 'Selecciona unidad y proyecto procesado.');\n  const markdownPath = path.resolve(PROCESSED_ROOT, unidadProcesado, proyectoProcesado, 'markdown');\n  if (!isWithin(PROCESSED_ROOT, markdownPath)) {\n    return fail(400, 'PROCESSED_SELECTION_INVALID', 'La selección de proyecto procesado no es válida.');\n  }\n  if (!fs.existsSync(markdownPath) || !fs.statSync(markdownPath).isDirectory()) {\n    return fail(404, 'PROCESSED_PROJECT_NOT_FOUND', 'No existe el markdown preprocesado seleccionado.');\n  }\n}\n\nconst opportunityId = normalizeText(body.opportunityId);\nlet selectedOpportunity = null;\nif (includeOpportunity) {\n  if (!opportunityId) return fail(400, 'OPPORTUNITY_REQUIRED', 'Selecciona una oportunidad.');\n  const index = readJson(INDEX_PATH, { items: [] });\n  selectedOpportunity = (index.items || []).find((item) => normalizeText(item.opportunityId || item.id || item.salesforceOpportunityId || item.businessOpportunityId) === opportunityId) || null;\n  if (!selectedOpportunity) return fail(404, 'OPPORTUNITY_NOT_FOUND', `No se encontró la oportunidad ${opportunityId}.`);\n}\n\nlet uploadFiles = [];\ntry {\n  if (includeUploads) {\n    const uploadIds = normalizeUploadIds(body);\n    if (!uploadIds.length) return fail(400, 'UPLOAD_REQUIRED', 'Añade al menos un archivo.');\n    uploadFiles = hydrateUploads(uploadIds, who);\n  }\n} catch (err) {\n  return fail(400, 'UPLOAD_INVALID', err.message);\n}\n\nconst plantilla = validateTemplate(body.plantilla || body.template);\nif (!plantilla) return fail(400, 'TEMPLATE_REQUIRED', 'Selecciona una plantilla DOCX o PPTX válida.');\n\nconst idioma = normalizeText(body.idioma || body.outputLanguage || 'Español (ES)');\nconst sectorOutput = ['general', 'sector_publico', 'sector_privado'].includes(normalizeText(body.sector_outputformat).toLowerCase())\n  ? normalizeText(body.sector_outputformat).toLowerCase()\n  : 'general';\n\nconst sessionId = crypto.randomBytes(16).toString('hex');\nconst projectPath = path.join(WORKSPACE_ROOT, sessionId);\nconst projectDocsDir = path.join(projectPath, 'codex-docs');\nfs.mkdirSync(projectDocsDir, { recursive: true });\n\nconst formData = {\n  includeProcessed,\n  includeOpportunity,\n  includeUploads,\n  unidadProcesado,\n  proyectoProcesado,\n  opportunitySelectionMode: normalizeText(body.opportunitySelectionMode || 'filters'),\n  businessOpportunityIdSearch: normalizeText(body.businessOpportunityIdSearch),\n  sector: normalizeText(body.sector || selectedOpportunity?.sector),\n  unidadOportunidad: normalizeText(body.unidadOportunidad || selectedOpportunity?.unit),\n  cliente: normalizeText(body.cliente || selectedOpportunity?.customerName || selectedOpportunity?.customer),\n  opportunityId,\n  uploadFiles,\n  idioma,\n  plantilla,\n  sector_outputformat: sectorOutput,\n  instruccionEspecifica: normalizeText(body.instruccionEspecifica),\n  model_select: normalizeText(body.model_select || body.requestedModel),\n  requestedReasoning: normalizeText(body.requestedReasoning || body.reasoningLevel),\n  extract: body.extract === undefined ? true : body.extract\n};\n\nconst now = new Date().toISOString();\nconst sourceType = selectedSources.length > 1 ? 'mixed' : selectedSources[0];\nconst queuedState = {\n  _id: sessionId,\n  sessionId,\n  createdAt: now,\n  updatedAt: now,\n  lastCheckpoint: 'vue-api-queued',\n  timeline: [{ checkpoint: 'vue-api-queued', ts: now }],\n  runtime: { status: 'En cola...', progress: 0, completed: false, success: false, processing_started: false, error: null },\n  execution: { phase: 'queued', finished: false, stopped: false, shouldContinue: true },\n  context: {\n    userKey: who.userKey,\n    axet_user_id: who.axetUserId || null,\n    okta_id: who.oktaId || null,\n    selectedSources,\n    sourceType,\n    includeProcessed,\n    includeOpportunity,\n    includeUploads,\n    unidad: unidadProcesado || normalizeText(selectedOpportunity?.unit) || 'mixto',\n    proyecto: proyectoProcesado || normalizeText(selectedOpportunity?.title || selectedOpportunity?.name) || selectedSources.join('_'),\n    opportunityId: opportunityId || null,\n    opportunityTitle: normalizeText(selectedOpportunity?.title || selectedOpportunity?.name) || null,\n    opportunityCustomer: normalizeText(selectedOpportunity?.customerName || selectedOpportunity?.customer) || null,\n    plantilla,\n    sector_outputformat: sectorOutput,\n    instruccionEspecifica: formData.instruccionEspecifica || null,\n    outputLanguage: idioma\n  },\n  selection: { plantilla, template: plantilla, sector_outputformat: sectorOutput, requestedModel: formData.model_select || null, requestedReasoning: formData.requestedReasoning || null },\n  transport: { frontend: 'vue', apiVersion: '2.1.0' }\n};\nwriteJsonAtomic(path.join(projectDocsDir, 'SESSION_STATE.json'), queuedState);\nwriteJsonAtomic(path.join(OWNER_DIR, `${sessionId}.json`), {\n  sessionId,\n  userKey: who.userKey,\n  axetUserId: who.axetUserId || null,\n  projectPath,\n  createdAt: now,\n  frontend: 'vue'\n});\nmsg.sessionId = sessionId;\nmsg.msgid = sessionId;\nmsg.projectPath = projectPath;\nmsg.projectDocsDir = projectDocsDir;\nmsg.submission = { ...formData };\nmsg.onInitSubmission = { ...formData, sessionId, projectPath };\nmsg._transport = 'vue-background';\nmsg._apiRequestId = msg._msgid || null;\nmsg._vueUploadIds = uploadFiles.map((item) => item.uploadId).filter(Boolean);\nmsg._vueSessionOwner = who.userKey;\n\nconst backgroundMsg = RED.util.cloneMessage(msg);\ndelete backgroundMsg.req;\ndelete backgroundMsg.res;\nbackgroundMsg.payload = { data: { ...formData } };\nbackgroundMsg.__vueExecution = { sessionId, acceptedAt: now, userKey: who.userKey };\nbackgroundMsg._vueUploadIds = [...msg._vueUploadIds];\n\nresponse(202, {\n  ok: true,\n  accepted: true,\n  sessionId,\n  status: 'queued',\n  selectedSources,\n  sourceType,\n  createdAt: now,\n  links: {\n    status: `./api/executions/${sessionId}`,\n    results: `./api/executions/${sessionId}/results`,\n    stop: `./api/executions/${sessionId}/stop`\n  }\n});\n\nnode.warn(`Vue API execution accepted user=${who.userKey} sid=${sessionId.slice(0, 8)} sources=${selectedSources.join(',')}`);\nreturn [msg, backgroundMsg];\n",
+        "outputs": 2,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 4050,
+        "y": 900,
+        "wires": [
+            [
+                "fcd2a6fc507d6184"
+            ],
+            [
+                "c89f58e0bee76524"
+            ]
+        ]
+    },
+    {
+        "id": "5db93958b6d3630b",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Stop or release execution",
+        "func": "const fs = require('fs');\nconst path = require('path');\nconst os = require('os');\nconst { spawn } = require('child_process');\n\nconst ROOT = '/internal-storage-files/files';\nconst ACTIVE_DIR = path.join(ROOT, '_active-sessions');\nconst OWNER_DIR = path.join(ROOT, '_vue-session-owners');\nconst WORKSPACE_DIR = path.join(ROOT, 'codex-workspace');\n\nfunction text(value) { return String(value ?? '').trim(); }\nfunction safe(value) { return text(value).replace(/[^a-zA-Z0-9_.@-]+/g, '_').slice(0, 180); }\nfunction readJson(filePath, fallback = null) { try { if (!fs.existsSync(filePath)) return fallback; const raw = fs.readFileSync(filePath, 'utf8').trim(); return raw ? JSON.parse(raw) : fallback; } catch (_) { return fallback; } }\nfunction writeJsonAtomic(filePath, value) { fs.mkdirSync(path.dirname(filePath), { recursive: true }); const tmp = `${filePath}.${Date.now()}.tmp`; fs.writeFileSync(tmp, JSON.stringify(value, null, 2), 'utf8'); fs.renameSync(tmp, filePath); }\nfunction deepMerge(target, source) { if (!source || typeof source !== 'object' || Array.isArray(source)) return target; for (const [k, v] of Object.entries(source)) { if (v === undefined) continue; if (v && typeof v === 'object' && !Array.isArray(v)) { if (!target[k] || typeof target[k] !== 'object' || Array.isArray(target[k])) target[k] = {}; deepMerge(target[k], v); } else target[k] = v; } return target; }\nfunction identity() { const sec = msg.__axetFlowsSecurityContext || {}; const idp = sec.externalIdpUserInfo || {}; const roles = Array.isArray(sec.userRoles || sec.roles) ? (sec.userRoles || sec.roles).map(String) : String(sec.userRoles || sec.roles || '').split(/[;,\\s]+/).filter(Boolean); return { userKey: text(idp.preferred_username || idp.email || idp.sub || sec.login || msg.req?.user?.email || msg.req?.user?.id), axetUserId: text(sec.axetUserId), isAdmin: roles.some((role) => /(^|_)SUPER_ADMIN$|(^|_)ADMIN$/i.test(role)) }; }\nfunction response(code, payload) { msg.statusCode = code; msg.headers = { ...(msg.headers || {}), 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }; msg.payload = payload; return msg; }\nfunction kill(pid) { const p = Number(pid); if (!p) return false; try { if (os.platform() === 'win32') spawn('taskkill', ['/PID', String(p), '/T', '/F'], { detached: true, stdio: 'ignore' }).unref(); else spawn('sh', ['-c', `pkill -TERM -P ${p} 2>/dev/null; kill -TERM ${p} 2>/dev/null; sleep 2; pkill -KILL -P ${p} 2>/dev/null; kill -KILL ${p} 2>/dev/null`], { detached: true, stdio: 'ignore' }).unref(); return true; } catch (_) { return false; } }\n\nconst who = identity();\nif (!who.userKey) return response(401, { ok: false, error: 'AUTH_REQUIRED' });\nconst sessionId = text(msg.req?.params?.sessionId);\nif (!/^[a-zA-Z0-9_-]{8,128}$/.test(sessionId)) return response(400, { ok: false, error: 'INVALID_SESSION_ID' });\nconst projectPath = path.join(WORKSPACE_DIR, sessionId);\nconst statePath = path.join(projectPath, 'codex-docs', 'SESSION_STATE.json');\nconst state = readJson(statePath, null);\nif (!state) return response(404, { ok: false, error: 'SESSION_NOT_FOUND' });\nconst activePath = path.join(ACTIVE_DIR, `${who.userKey}.json`);\nconst active = readJson(activePath, null);\nconst owner = readJson(path.join(OWNER_DIR, `${safe(sessionId)}.json`), null);\nconst authorized = who.isAdmin || active?.sessionId === sessionId || text(owner?.userKey).toLowerCase() === who.userKey.toLowerCase() || (who.axetUserId && text(state?.context?.axet_user_id) === who.axetUserId);\nif (!authorized) return response(403, { ok: false, error: 'SESSION_FORBIDDEN' });\n\nif (msg._apiAction === 'release') {\n  const terminal = state?.resultReady === true || state?.runtime?.completed === true || state?.execution?.finished === true || state?.execution?.stopped === true;\n  if (!terminal && msg.payload?.force !== true) return response(409, { ok: false, error: 'SESSION_RUNNING', message: 'La sesión sigue ejecutándose. Detén la ejecución antes de liberarla.' });\n  try { if (active?.sessionId === sessionId && fs.existsSync(activePath)) fs.unlinkSync(activePath); } catch (err) { return response(500, { ok: false, error: 'RELEASE_FAILED', message: err.message }); }\n  return response(200, { ok: true, sessionId, released: true });\n}\n\nconst now = new Date().toISOString();\nconst updated = deepMerge(state, {\n  updatedAt: now,\n  runtime: { status: 'Stopped by user', manualStop: true, completed: false, success: false },\n  execution: { stopRequested: true, stopRequestedAt: now, stopped: true, finished: true, shouldContinue: false, reason: 'manual-stop' }\n});\nwriteJsonAtomic(statePath, updated);\nconst pids = [updated?.execution?.process?.pid, updated?.execution?.process?.workerPid, updated?.execution?.workerPid].filter(Boolean);\nlet killRequested = false;\nfor (const pid of new Set(pids.map(Number))) killRequested = kill(pid) || killRequested;\nif (active?.sessionId === sessionId) {\n  writeJsonAtomic(activePath, { ...active, status: 'stopped', updatedAt: now, stoppedAt: now });\n}\nflow.set(`__front_stop:${sessionId}`, { sessionId, stopped: true, reason: 'manual-stop', stoppedAt: now });\nflow.set(`__front_stop:${who.userKey}:${sessionId}`, { sessionId, stopped: true, reason: 'manual-stop', stoppedAt: now });\nreturn response(200, { ok: true, sessionId, stopped: true, killRequested, updatedAt: now });\n",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 4300,
+        "y": 980,
+        "wires": [
+            [
+                "fcd2a6fc507d6184"
+            ]
+        ]
+    },
+    {
+        "id": "b2dcc805a8e33220",
+        "type": "http in",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] POST stop",
+        "url": "/references-codex/api/executions/:sessionId/stop",
+        "method": "post",
+        "upload": false,
+        "skipBodyParsing": false,
+        "x": 3600,
+        "y": 960,
+        "wires": [
+            [
+                "437327f7c52282b6"
+            ]
+        ]
+    },
+    {
+        "id": "437327f7c52282b6",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "API: stop",
+        "func": "msg._apiAction = \"stop\";\nreturn msg;",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 3970,
+        "y": 960,
+        "wires": [
+            [
+                "5db93958b6d3630b"
+            ]
+        ]
+    },
+    {
+        "id": "25676740be530060",
+        "type": "http in",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] POST release",
+        "url": "/references-codex/api/executions/:sessionId/release",
+        "method": "post",
+        "upload": false,
+        "skipBodyParsing": false,
+        "x": 3600,
+        "y": 1020,
+        "wires": [
+            [
+                "31f45a09fb95fc33"
+            ]
+        ]
+    },
+    {
+        "id": "31f45a09fb95fc33",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "API: release",
+        "func": "msg._apiAction = \"release\";\nreturn msg;",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 3970,
+        "y": 1020,
+        "wires": [
+            [
+                "5db93958b6d3630b"
+            ]
+        ]
+    },
+    {
+        "id": "18079188562066bf",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Resolve session action",
+        "func": "const fs = require('fs');\nconst path = require('path');\n\nconst ROOT = '/internal-storage-files/files';\nconst ACTIVE_DIR = path.join(ROOT, '_active-sessions');\nconst OWNER_DIR = path.join(ROOT, '_vue-session-owners');\nconst WORKSPACE_DIR = path.join(ROOT, 'codex-workspace');\n\nfunction text(value) { return String(value ?? '').trim(); }\nfunction safe(value) { return text(value).replace(/[^a-zA-Z0-9_.@-]+/g, '_').slice(0, 180); }\nfunction readJson(filePath, fallback = null) { try { if (!fs.existsSync(filePath)) return fallback; const raw = fs.readFileSync(filePath, 'utf8').trim(); return raw ? JSON.parse(raw) : fallback; } catch (_) { return fallback; } }\nfunction identity() { const sec = msg.__axetFlowsSecurityContext || {}; const idp = sec.externalIdpUserInfo || {}; const roles = Array.isArray(sec.userRoles || sec.roles) ? (sec.userRoles || sec.roles).map(String) : String(sec.userRoles || sec.roles || '').split(/[;,\\s]+/).filter(Boolean); return { userKey: text(idp.preferred_username || idp.email || idp.sub || sec.login || msg.req?.user?.email || msg.req?.user?.id), axetUserId: text(sec.axetUserId), isAdmin: roles.some((role) => /(^|_)SUPER_ADMIN$|(^|_)ADMIN$/i.test(role)) }; }\nfunction error(code, key, message) { msg.statusCode = code; msg.headers = { ...(msg.headers || {}), 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }; msg.payload = { ok: false, error: key, message: message || key }; return [null, null, null, msg]; }\n\nconst who = identity();\nif (!who.userKey) return error(401, 'AUTH_REQUIRED');\nconst sessionId = text(msg.req?.params?.sessionId);\nif (!/^[a-zA-Z0-9_-]{8,128}$/.test(sessionId)) return error(400, 'INVALID_SESSION_ID');\nconst projectPath = path.join(WORKSPACE_DIR, sessionId);\nconst statePath = path.join(projectPath, 'codex-docs', 'SESSION_STATE.json');\nconst state = readJson(statePath, null);\nif (!state) return error(404, 'SESSION_NOT_FOUND');\nconst active = readJson(path.join(ACTIVE_DIR, `${who.userKey}.json`), null);\nconst owner = readJson(path.join(OWNER_DIR, `${safe(sessionId)}.json`), null);\nconst authorized = who.isAdmin || active?.sessionId === sessionId || text(owner?.userKey).toLowerCase() === who.userKey.toLowerCase() || (who.axetUserId && text(state?.context?.axet_user_id) === who.axetUserId);\nif (!authorized) return error(403, 'SESSION_FORBIDDEN');\n\nconst answersPath = path.join(projectPath, 'codex-docs', 'output', 'respuestas.json');\nif (!fs.existsSync(answersPath)) return error(409, 'RESULT_NOT_READY', 'La ejecución todavía no ha generado respuestas.json.');\n\nconst context = state.context || {};\nconst selection = state.selection || {};\nconst selectedSources = Array.isArray(context.selectedSources) ? context.selectedSources : [];\nconst sourceType = text(context.sourceType || (selectedSources.length > 1 ? 'mixed' : selectedSources[0]));\nconst plantilla = text(selection.plantilla || selection.template || context.plantilla || context.template);\nconst sectorOutput = text(selection.sector_outputformat || context.sector_outputformat || 'general');\nconst unidad = text(context.unidad || context.unit || 'unidad');\nconst proyecto = text(context.proyecto || context.project || 'proyecto');\nconst submission = {\n  sessionId,\n  projectPath,\n  selectedSources,\n  sourceType,\n  unidad,\n  proyecto,\n  opportunityId: text(context.opportunityId),\n  plantilla,\n  template: plantilla,\n  sector_outputformat: sectorOutput,\n  instruccionEspecifica: text(context.instruccionEspecifica),\n  outputLanguage: text(context.outputLanguage),\n  data: {\n    sessionId,\n    projectPath,\n    selectedSources,\n    sourceType,\n    unidad,\n    proyecto,\n    opportunityId: text(context.opportunityId),\n    plantilla,\n    template: plantilla,\n    sector_outputformat: sectorOutput\n  }\n};\n\nmsg._transport = 'http';\nmsg.sessionId = sessionId;\nmsg.projectPath = projectPath;\nmsg.projectDocsDir = path.join(projectPath, 'codex-docs');\nmsg.selectedSources = selectedSources;\nmsg.sourceType = sourceType;\nmsg.unit = unidad;\nmsg.project = proyecto;\nmsg.opportunityId = submission.opportunityId || null;\nmsg.plantilla = plantilla;\nmsg.templateName = plantilla;\nmsg.sector_outputformat = sectorOutput;\nmsg.submission = submission;\nmsg.onInitSubmission = { ...submission, data: { ...submission.data } };\nmsg.payload = { sessionId, projectPath, data: { ...submission.data }, submission: { ...submission } };\n\nswitch (msg._apiAction) {\n  case 'export-excel': return [msg, null, null, null];\n  case 'export-template': return [null, msg, null, null];\n  case 'sharepoint': return [null, null, msg, null];\n  default: return error(400, 'UNKNOWN_SESSION_ACTION');\n}\n",
+        "outputs": 4,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 4280,
+        "y": 1360,
+        "wires": [
+            [
+                "510ba6ec08000d02"
+            ],
+            [
+                "ab71839a79f508c9"
+            ],
+            [
+                "72de8cbe39b8b9d0"
+            ],
+            [
+                "6da064a51d4d719c"
+            ]
+        ]
+    },
+    {
+        "id": "d27b16d78813bde7",
+        "type": "http in",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] POST Excel",
+        "url": "/references-codex/api/executions/:sessionId/export/excel",
+        "method": "post",
+        "upload": false,
+        "skipBodyParsing": false,
+        "x": 3600,
+        "y": 1280,
+        "wires": [
+            [
+                "df2b8d4ec27fc015"
+            ]
+        ]
+    },
+    {
+        "id": "df2b8d4ec27fc015",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "API: export-excel",
+        "func": "msg._apiAction = \"export-excel\";\nreturn msg;",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 3970,
+        "y": 1280,
+        "wires": [
+            [
+                "18079188562066bf"
+            ]
+        ]
+    },
+    {
+        "id": "830e053937a761d3",
+        "type": "http in",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] POST DOCX/PPTX",
+        "url": "/references-codex/api/executions/:sessionId/export/template",
+        "method": "post",
+        "upload": false,
+        "skipBodyParsing": false,
+        "x": 3600,
+        "y": 1340,
+        "wires": [
+            [
+                "192c18d3f5cc5dad"
+            ]
+        ]
+    },
+    {
+        "id": "192c18d3f5cc5dad",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "API: export-template",
+        "func": "msg._apiAction = \"export-template\";\nreturn msg;",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 3970,
+        "y": 1340,
+        "wires": [
+            [
+                "18079188562066bf"
+            ]
+        ]
+    },
+    {
+        "id": "bfb714df59e69986",
+        "type": "http in",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] POST SharePoint",
+        "url": "/references-codex/api/executions/:sessionId/sharepoint",
+        "method": "post",
+        "upload": false,
+        "skipBodyParsing": false,
+        "x": 3600,
+        "y": 1400,
+        "wires": [
+            [
+                "6a44af482fe9a0d2"
+            ]
+        ]
+    },
+    {
+        "id": "6a44af482fe9a0d2",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "API: sharepoint",
+        "func": "msg._apiAction = \"sharepoint\";\nreturn msg;",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 3970,
+        "y": 1400,
+        "wires": [
+            [
+                "18079188562066bf"
+            ]
+        ]
+    },
+    {
+        "id": "f40d0c6406de5048",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Excel: HTTP or Form.io",
+        "func": "const transport = String(msg._transport || '');\nif (transport === 'http' || transport.startsWith('vue')) return [msg, null];\nreturn [null, msg];",
+        "outputs": 2,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 1370,
+        "y": 1220,
+        "wires": [
+            [
+                "71535c0e7a09d134"
+            ],
+            [
+                "8d80e99f6064d41e"
+            ]
+        ]
+    },
+    {
+        "id": "35e6a149ffa03593",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Document: HTTP or Form.io",
+        "func": "const transport = String(msg._transport || '');\nif (transport === 'http' || transport.startsWith('vue')) return [msg, null];\nreturn [null, msg];",
+        "outputs": 2,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 2750,
+        "y": 1340,
+        "wires": [
+            [
+                "71535c0e7a09d134"
+            ],
+            [
+                "5d72a40b6e8427ef"
+            ]
+        ]
+    },
+    {
+        "id": "b91d8a2a519264b8",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] SharePoint: HTTP or Form.io",
+        "func": "const transport = String(msg._transport || '');\nif (transport === 'http' || transport.startsWith('vue')) return [msg, null];\nreturn [null, msg];",
+        "outputs": 2,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 3290,
+        "y": 1300,
+        "wires": [
+            [
+                "c37080e9ee92da16"
+            ],
+            [
+                "8e76a82b267e3c52"
+            ]
+        ]
+    },
+    {
+        "id": "bb99535d3ed297bd",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Generation error: HTTP or Form.io",
+        "func": "const transport = String(msg._transport || '');\nif (transport === 'http' || transport.startsWith('vue')) return [msg, null];\nreturn [null, msg];",
+        "outputs": 2,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 2130,
+        "y": 1520,
+        "wires": [
+            [
+                "6da064a51d4d719c"
+            ],
+            [
+                "6049bd72f83ec32d"
+            ]
+        ]
+    },
+    {
+        "id": "c209312e95f52971",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Export catch: HTTP or Form.io",
+        "func": "const transport = String(msg._transport || '');\nif (transport === 'http' || transport.startsWith('vue')) return [msg, null];\nreturn [null, msg];",
+        "outputs": 2,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 4040,
+        "y": 1500,
+        "wires": [
+            [
+                "6da064a51d4d719c"
+            ],
+            [
+                "6049bd72f83ec32d"
+            ]
+        ]
+    },
+    {
+        "id": "afb63ebb5df0724f",
+        "type": "catch",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Catch export errors",
+        "scope": [
+            "578892a3ee1b1227",
+            "9365734e99000cd5",
+            "a3ac7e2605af1606",
+            "cca56e93b9459f83",
+            "81d41bd418935de5",
+            "e8eecd2c0abbf954",
+            "2f6877b1601950bf",
+            "6d75f4bde6a8e0bb",
+            "9a9238a79955531e",
+            "392510151ef3dc48",
+            "ab8bc279421fc878",
+            "2062be1755994581",
+            "2ea886fa1ab5f030",
+            "1ec68cb1dbe8be47",
+            "b5717aa8be9c2e7f"
+        ],
+        "uncaught": false,
+        "x": 3800,
+        "y": 1500,
+        "wires": [
+            [
+                "c209312e95f52971"
+            ]
+        ]
+    },
+    {
+        "id": "5c3c158641fdc863",
+        "type": "comment",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] API MANA",
+        "info": "Subir, comprobar, listar y eliminar documentos de oportunidad reutilizando los nodos Graph actuales.",
+        "x": 3780,
+        "y": 1600,
+        "wires": [],
+        "width": 460
+    },
+    {
+        "id": "3bf0b7f5ce1dc504",
+        "type": "http in",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] POST MANA action",
+        "url": "/references-codex/api/mana/actions",
+        "method": "post",
+        "upload": false,
+        "skipBodyParsing": false,
+        "x": 3600,
+        "y": 1660,
+        "wires": [
+            [
+                "769dbffc4c21171d"
+            ]
+        ]
+    },
+    {
+        "id": "769dbffc4c21171d",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Adapt MANA action",
+        "func": "const fs = require('fs');\nconst path = require('path');\n\nconst ROOT = '/internal-storage-files/files';\nconst UPLOAD_ROOT = path.join(ROOT, '_vue-uploads');\n\nfunction normalizeText(value) {\n  return String(value ?? '').normalize('NFC').replace(/[\\u200B-\\u200D\\uFEFF]/g, '').replace(/\\u00A0/g, ' ').trim();\n}\nfunction safePart(value, fallback = '') {\n  return normalizeText(value).replace(/[^a-zA-Z0-9_.@-]+/g, '_').replace(/^\\.+/, '').slice(0, 180) || fallback;\n}\nfunction readJson(filePath, fallback = null) {\n  try {\n    if (!filePath || !fs.existsSync(filePath)) return fallback;\n    const raw = fs.readFileSync(filePath, 'utf8').trim();\n    return raw ? JSON.parse(raw) : fallback;\n  } catch (_) { return fallback; }\n}\nfunction identity() {\n  const sec = msg.__axetFlowsSecurityContext || {};\n  const idp = sec.externalIdpUserInfo || {};\n  return normalizeText(\n    idp.preferred_username || idp.email || idp.sub || sec.login ||\n    msg.req?.user?.email || msg.req?.user?.id || msg.userId || ''\n  );\n}\nfunction response(statusCode, error, message) {\n  msg.statusCode = statusCode;\n  msg.headers = { ...(msg.headers || {}), 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' };\n  msg.payload = { ok: false, error, message };\n  return msg;\n}\nfunction uploadIds(body) {\n  const raw = body.uploadIds || body.uploads || [];\n  return (Array.isArray(raw) ? raw : [raw])\n    .map((item) => typeof item === 'object' ? item.uploadId || item.id || item.value : item)\n    .map(normalizeText)\n    .filter(Boolean);\n}\nfunction hydrateUploads(ids, userKey) {\n  return ids.map((uploadId) => {\n    if (!/^[a-f0-9]{24,64}$/i.test(uploadId)) throw new Error(`Upload id no válido: ${uploadId}`);\n    const dir = path.join(UPLOAD_ROOT, safePart(userKey, 'user'), uploadId);\n    const metadata = readJson(path.join(dir, 'metadata.json'), null);\n    if (!metadata) throw new Error(`Upload no encontrado: ${uploadId}`);\n    if (normalizeText(metadata.userKey).toLowerCase() !== userKey.toLowerCase()) throw new Error(`Upload no autorizado: ${uploadId}`);\n    const filePath = path.resolve(normalizeText(metadata.path));\n    if (!filePath.startsWith(path.resolve(dir) + path.sep) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {\n      throw new Error(`Upload no disponible: ${uploadId}`);\n    }\n    return {\n      uploadId,\n      name: normalizeText(metadata.name),\n      originalName: normalizeText(metadata.name),\n      type: normalizeText(metadata.type),\n      size: Number(metadata.size || fs.statSync(filePath).size),\n      path: filePath\n    };\n  });\n}\n\nconst userKey = identity();\nif (!userKey) return [null, null, response(401, 'AUTH_REQUIRED', 'No se ha podido resolver el usuario autenticado.')];\n\nconst body = msg.payload?.data && typeof msg.payload.data === 'object' ? msg.payload.data : (msg.payload || {});\nconst actionRaw = normalizeText(body.action || body.crudAction || 'checkRequired');\nconst actionAliases = {\n  upload: 'upload',\n  check: 'checkRequired',\n  checkRequired: 'checkRequired',\n  delete: 'deleteDoc',\n  deleteDoc: 'deleteDoc',\n  deleteDocList: 'deleteDoc',\n  deleteDocConfirm: 'deleteDocConfirm'\n};\nconst action = actionAliases[actionRaw];\nif (!action) return [null, null, response(400, 'MANA_ACTION_INVALID', `Acción no soportada: ${actionRaw}`)];\n\nconst opportunityId = normalizeText(body.opportunityId);\nif (!opportunityId) return [null, null, response(400, 'OPPORTUNITY_REQUIRED', 'Selecciona una oportunidad.')];\n\nlet uploads = [];\ntry {\n  if (action === 'upload') {\n    const ids = uploadIds(body);\n    if (!ids.length) return [null, null, response(400, 'UPLOAD_REQUIRED', 'Selecciona al menos un documento.')];\n    uploads = hydrateUploads(ids, userKey);\n  }\n} catch (err) {\n  return [null, null, response(400, 'UPLOAD_INVALID', err.message)];\n}\n\nmsg._transport = 'http';\nmsg._apiRequestId = msg._msgid || null;\nmsg.sessionUserKey = userKey;\nmsg._vueUploadIds = uploads.map((item) => item.uploadId).filter(Boolean);\n\nif (action === 'deleteDocConfirm') {\n  const deleteFileName = normalizeText(body.deleteFileName || body.fileName || body.fileToDelete);\n  if (!deleteFileName) return [null, null, response(400, 'DELETE_FILE_REQUIRED', 'Selecciona el documento que quieres eliminar.')];\n  const data = { deleteFileName, opportunityId, userKey };\n  msg.payload = { data };\n  msg.submission = { data };\n  msg.onInitSubmission = { data };\n  return [null, msg, null];\n}\n\nconst data = {\n  crudAction: action,\n  opportunityId,\n  sector: normalizeText(body.sector),\n  unidadOportunidad: normalizeText(body.unidadOportunidad || body.unit),\n  cliente: normalizeText(body.cliente || body.customer),\n  uploadFile: uploads,\n  userKey\n};\nmsg.payload = { data };\nmsg.submission = { data };\nmsg.onInitSubmission = { data };\nreturn [msg, null, null];\n",
+        "outputs": 3,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 4040,
+        "y": 1660,
+        "wires": [
+            [
+                "ae4a8de39f6a5481"
+            ],
+            [
+                "7ac4b50c2cf548c1"
+            ],
+            [
+                "6da064a51d4d719c"
+            ]
+        ]
+    },
+    {
+        "id": "61444a392543f74f",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] mana-upload: HTTP or Form.io",
+        "func": "const transport = String(msg._transport || '');\nif (transport === 'http' || transport.startsWith('vue')) return [msg, null];\nreturn [null, msg];",
+        "outputs": 2,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 1650,
+        "y": 1640,
+        "wires": [
+            [
+                "7103c1c496458fa4"
+            ],
+            [
+                "86741cc9b41c2658"
+            ]
+        ]
+    },
+    {
+        "id": "58a5307619660de4",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] mana-check: HTTP or Form.io",
+        "func": "const transport = String(msg._transport || '');\nif (transport === 'http' || transport.startsWith('vue')) return [msg, null];\nreturn [null, msg];",
+        "outputs": 2,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 2140,
+        "y": 2050,
+        "wires": [
+            [
+                "6299581722036e53"
+            ],
+            [
+                "b36b4ba5425076e1"
+            ]
+        ]
+    },
+    {
+        "id": "8d6a9d51ec889e46",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] mana-list-delete: HTTP or Form.io",
+        "func": "const transport = String(msg._transport || '');\nif (transport === 'http' || transport.startsWith('vue')) return [msg, null];\nreturn [null, msg];",
+        "outputs": 2,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 1650,
+        "y": 1800,
+        "wires": [
+            [
+                "6299581722036e53"
+            ],
+            [
+                "7d8338253b8c1f9d"
+            ]
+        ]
+    },
+    {
+        "id": "3f602fc7144d3fd5",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] mana-delete-result: HTTP or Form.io",
+        "func": "const transport = String(msg._transport || '');\nif (transport === 'http' || transport.startsWith('vue')) return [msg, null];\nreturn [null, msg];",
+        "outputs": 2,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 2140,
+        "y": 2135,
+        "wires": [
+            [
+                "6299581722036e53"
+            ],
+            [
+                "b36b4ba5425076e1"
+            ]
+        ]
+    },
+    {
+        "id": "097f2fd3796779eb",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] mana-upload-error: HTTP or Form.io",
+        "func": "const transport = String(msg._transport || '');\nif (transport === 'http' || transport.startsWith('vue')) return [msg, null];\nreturn [null, msg];",
+        "outputs": 2,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 790,
+        "y": 1880,
+        "wires": [
+            [
+                "6299581722036e53"
+            ],
+            [
+                "1655774b728141cd"
+            ]
+        ]
+    },
+    {
+        "id": "4fe320b0307c0800",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] mana-delete-validation: HTTP or Form.io",
+        "func": "const transport = String(msg._transport || '');\nif (transport === 'http' || transport.startsWith('vue')) return [msg, null];\nreturn [null, msg];",
+        "outputs": 2,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 920,
+        "y": 2215,
+        "wires": [
+            [
+                "6299581722036e53"
+            ],
+            [
+                "8f210509046a42b7"
+            ]
+        ]
+    },
+    {
+        "id": "ef82ab72e0061dde",
+        "type": "function",
+        "z": "6efe739b.ee17.4dc8.83b2.ee1138c607b7",
+        "name": "[VUE MIGRATION] Cleanup staged uploads after materialization",
+        "func": "const fs = require('fs');\nconst path = require('path');\n\nconst ROOT = '/internal-storage-files/files/_vue-uploads';\n\nfunction normalizeText(value) {\n  return String(value ?? '').normalize('NFC').replace(/[\\u200B-\\u200D\\uFEFF]/g, '').trim();\n}\nfunction safePart(value, fallback = '') {\n  return normalizeText(value).replace(/[^a-zA-Z0-9_.@-]+/g, '_').replace(/^\\.+/, '').slice(0, 180) || fallback;\n}\nfunction identity() {\n  const sec = msg.__axetFlowsSecurityContext || {};\n  const idp = sec.externalIdpUserInfo || {};\n  return normalizeText(\n    msg._vueSessionOwner ||\n    idp.preferred_username ||\n    idp.email ||\n    idp.sub ||\n    sec.login ||\n    ''\n  );\n}\n\nconst ids = Array.isArray(msg._vueUploadIds)\n  ? msg._vueUploadIds.map(normalizeText).filter((id) => /^[a-f0-9]{24,64}$/i.test(id))\n  : [];\nconst userKey = identity();\n\nif (ids.length && userKey) {\n  const userRoot = path.resolve(path.join(ROOT, safePart(userKey, 'user')));\n  for (const uploadId of ids) {\n    const target = path.resolve(path.join(userRoot, uploadId));\n    if (!target.startsWith(userRoot + path.sep)) continue;\n    try {\n      fs.rmSync(target, { recursive: true, force: true });\n    } catch (err) {\n      node.warn(`Vue upload cleanup ${uploadId}: ${err.message}`);\n    }\n  }\n}\n\ndelete msg._vueUploadIds;\nreturn msg;\n",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 430,
+        "y": 380,
+        "wires": [
+            [
+                "e1c02662b32ac7a5"
+            ]
+        ]
+    },
+    {
+        "id": "66c215f15db786bf",
+        "type": "function",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Suppress legacy final redirect for Vue",
+        "func": "const isVue = Boolean(msg.__vueExecution) || String(msg._transport || '').startsWith('vue');\nif (isVue) return null;\nreturn msg;",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 1110,
+        "y": 1100,
+        "wires": [
+            [
+                "3256255457c58600"
+            ]
+        ]
+    },
+    {
+        "id": "43b8fc7b6dde1a83",
+        "type": "function",
+        "z": "6efe739b.ee17.4dc8.83b2.ee1138c607b7",
+        "name": "[VUE MIGRATION] Suppress legacy progress redirect",
+        "func": "const transport = String(msg._transport || '');\nif (transport === 'http' || transport.startsWith('vue')) return null;\nreturn msg;",
+        "outputs": 1,
+        "setupErrors": 0,
+        "functionErrors": 0,
+        "closeErrors": 0,
+        "initialize": "",
+        "finalize": "",
+        "x": 730,
+        "y": 580,
+        "wires": [
+            [
+                "c01106f385abba80"
+            ]
+        ]
+    },
+    {
+        "id": "2606a5cfe9b20185",
+        "type": "comment",
+        "z": "b678025fa24bf933",
+        "name": "[VUE MIGRATION] Contrato conservado",
+        "info": "POST /api/executions construye exactamente los campos que esperaba el formulario: includeProcessed, includeOpportunity, includeUploads, unidad/proyecto, opportunityId, uploadFiles, idioma, plantilla, sector_outputformat e instruccionEspecifica. Desde ahí se reutiliza el subflujo Ejecucion (1).",
+        "x": 3800,
+        "y": 1810,
+        "wires": [],
+        "width": 520
+    }
+]
