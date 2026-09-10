@@ -1,0 +1,30 @@
+{
+  "home": {
+    "eyebrow": "Vue 3 starter",
+    "title": "Build something excellent.",
+    "description": "A clean foundation with routing, state, internationalization, notifications, and Tailwind CSS already connected.",
+    "action": "Show notification",
+    "themeLight": "Switch to light mode",
+    "themeDark": "Switch to dark mode",
+    "count": "Interactions: {count}",
+    "notFound": "Page not found",
+    "backHome": "Back home",
+    "exampleLink": "Open example form"
+  },
+  "example": {
+    "eyebrow": "Proof of concept",
+    "title": "Example form",
+    "description": "This form loads the current user from /_auth/user and persists its data to the Node-RED /api/example endpoint using relative URLs.",
+    "name": "Name",
+    "email": "Email",
+    "message": "Message",
+    "submit": "Save",
+    "saving": "Saving…",
+    "saved": "Saved successfully",
+    "savedAt": "Saved at {time}",
+    "error": "Could not save the form",
+    "userLoading": "Loading user…",
+    "userGreeting": "Signed in as {name}",
+    "userUnknown": "No authenticated user"
+  }
+}
