@@ -37,6 +37,11 @@ const sharePointResponse = ref<Record<string, unknown> | null>(null)
 
 const sessionId = computed(() => String(route.params.sessionId || ''))
 const session = computed(() => results.value?.session || null)
+const isAdmin = computed(() =>
+  (appStore.user?.roles || []).some((role) =>
+    /(^|_)SUPER_ADMIN$|(^|_)ADMIN$/i.test(String(role)),
+  ),
+)
 const successful = computed(() => Boolean(results.value?.success && session.value?.ready))
 const resultUploadsOnly = computed(() => {
   const sources = results.value?.context.selectedSources || session.value?.selectedSources || []
@@ -305,7 +310,7 @@ onMounted(() => void load())
             <p v-else class="mt-4 text-sm text-slate-500">Sin artefactos registrados.</p>
           </article>
 
-          <RouterLink :to="{ name: 'logs', query: { sessionId } }" class="btn-secondary w-full no-underline">Abrir log de la sesión</RouterLink>
+          <RouterLink v-if="isAdmin" :to="{ name: 'logs', query: { sessionId } }" class="btn-secondary w-full no-underline">Abrir log de la sesión</RouterLink>
         </aside>
       </section>
 

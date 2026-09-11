@@ -10,17 +10,28 @@ const appStore = useAppStore()
 const themeStore = useThemeStore()
 const route = useRoute()
 const mobileOpen = ref(false)
+const adminOpen = ref(false)
 
-const items = computed(() => [
+const publicItems = [
   { name: 'dashboard', label: 'Inicio', path: '/', icon: 'home' },
   { name: 'new-execution', label: 'Nueva referencia', path: '/new', icon: 'plus' },
-  { name: 'logs', label: 'Ejecuciones y logs', path: '/logs', icon: 'logs' },
-  { name: 'mana', label: 'Oportunidades MANA', path: '/mana', icon: 'folder' },
-  { name: 'admin', label: 'Administración', path: '/admin', icon: 'admin' },
-])
+]
+
+const adminItems = [
+  { name: 'admin', label: 'Herramientas administrativas', path: '/admin' },
+  { name: 'logs', label: 'Ejecuciones y logs', path: '/logs' },
+  { name: 'mana', label: 'Oportunidades MANA', path: '/mana' },
+]
 
 const active = computed(() => appStore.activeSession)
 const user = computed(() => appStore.user)
+const isAdmin = computed(() =>
+  (user.value?.roles || []).some((role) =>
+    /(^|_)SUPER_ADMIN$|(^|_)ADMIN$/i.test(String(role)),
+  ),
+)
+const adminSectionActive = computed(() => adminItems.some((item) => isCurrent(item)))
+const adminSectionOpen = computed(() => adminOpen.value || adminSectionActive.value)
 
 function isCurrent(item: { name: string }): boolean {
   if (item.name === 'new-execution' && route.name === 'execution') return true
@@ -79,7 +90,7 @@ function isCurrent(item: { name: string }): boolean {
       >
         <nav class="space-y-1" aria-label="Navegación principal">
           <RouterLink
-            v-for="item in items"
+            v-for="item in publicItems"
             :key="item.name"
             :to="item.path"
             class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold no-underline transition"
@@ -90,13 +101,43 @@ function isCurrent(item: { name: string }): boolean {
           >
             <span class="grid h-8 w-8 place-items-center rounded-lg" :class="isCurrent(item) ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-900 dark:text-blue-300' : 'bg-slate-100 text-slate-500 group-hover:bg-white dark:bg-slate-900 dark:text-slate-400'">
               <svg v-if="item.icon === 'home'" viewBox="0 0 24 24" class="h-4.5 w-4.5" fill="none" stroke="currentColor" stroke-width="1.9"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z" /></svg>
-              <svg v-else-if="item.icon === 'plus'" viewBox="0 0 24 24" class="h-4.5 w-4.5" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 5v14M5 12h14" /></svg>
-              <svg v-else-if="item.icon === 'logs'" viewBox="0 0 24 24" class="h-4.5 w-4.5" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 5h16M4 12h16M4 19h10" /></svg>
-              <svg v-else-if="item.icon === 'folder'" viewBox="0 0 24 24" class="h-4.5 w-4.5" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 6.5h7l2 2h9v10.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></svg>
-              <svg v-else viewBox="0 0 24 24" class="h-4.5 w-4.5" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3 4 7v5c0 5 3.4 8 8 9 4.6-1 8-4 8-9V7Z" /><path d="M9 12l2 2 4-4" /></svg>
+              <svg v-else viewBox="0 0 24 24" class="h-4.5 w-4.5" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 5v14M5 12h14" /></svg>
             </span>
             {{ item.label }}
           </RouterLink>
+
+          <div v-if="isAdmin" class="pt-1">
+            <button
+              type="button"
+              class="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition"
+              :class="adminSectionActive
+                ? 'bg-blue-50 text-[#0b2f55] dark:bg-blue-950/40 dark:text-blue-200'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-white'"
+              @click="adminOpen = !adminSectionOpen"
+            >
+              <span class="grid h-8 w-8 place-items-center rounded-lg" :class="adminSectionActive ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-900 dark:text-blue-300' : 'bg-slate-100 text-slate-500 group-hover:bg-white dark:bg-slate-900 dark:text-slate-400'">
+                <svg viewBox="0 0 24 24" class="h-4.5 w-4.5" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3 4 7v5c0 5 3.4 8 8 9 4.6-1 8-4 8-9V7Z" /><path d="M9 12l2 2 4-4" /></svg>
+              </span>
+              <span class="min-w-0 flex-1 text-left">Administración</span>
+              <svg viewBox="0 0 24 24" class="h-4 w-4 shrink-0 transition-transform" :class="{ 'rotate-180': adminSectionOpen }" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6" /></svg>
+            </button>
+
+            <div v-if="adminSectionOpen" class="ml-7 mt-1 space-y-1 border-l border-slate-200 pl-3 dark:border-slate-800">
+              <RouterLink
+                v-for="item in adminItems"
+                :key="item.name"
+                :to="item.path"
+                class="flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-semibold no-underline transition"
+                :class="route.name === item.name
+                  ? 'bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200'
+                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white'"
+                @click="mobileOpen = false; adminOpen = true"
+              >
+                <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="route.name === item.name ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'"></span>
+                {{ item.label }}
+              </RouterLink>
+            </div>
+          </div>
         </nav>
       </aside>
 

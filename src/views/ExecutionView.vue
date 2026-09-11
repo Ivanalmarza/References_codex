@@ -24,6 +24,11 @@ let redirected = false
 
 const sessionId = computed(() => String(route.params.sessionId || ''))
 const session = computed(() => status.value?.session || null)
+const isAdmin = computed(() =>
+  (appStore.user?.roles || []).some((role) =>
+    /(^|_)SUPER_ADMIN$|(^|_)ADMIN$/i.test(String(role)),
+  ),
+)
 const sourceEntries = computed(() => Object.entries(status.value?.sourceSummary || {}) as Array<[string, SourceSummaryEntry]>)
 const uploadsOnly = computed(() => {
   const sources = session.value?.selectedSources || []
@@ -223,7 +228,7 @@ onBeforeUnmount(clearTimer)
         </div>
       </section>
 
-      <section class="surface-card">
+      <section v-if="isAdmin" class="surface-card">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div><p class="eyebrow">Log en vivo</p><h2 class="section-title mt-1">Últimas líneas de la ejecución</h2></div>
           <RouterLink :to="{ name: 'logs', query: { sessionId } }" class="btn-secondary no-underline">Abrir visor completo</RouterLink>

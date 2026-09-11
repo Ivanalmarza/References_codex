@@ -39,7 +39,6 @@ onMounted(() => void refresh())
         <p class="mt-4 max-w-2xl text-sm leading-6 text-blue-100 sm:text-base">Genera referencias trazables combinando proyectos procesados, oportunidades MANA y archivos propios.</p>
         <div class="mt-6 flex flex-wrap gap-3">
           <RouterLink to="/new" class="btn bg-white text-[#0b2f55] no-underline hover:bg-blue-50">Crear nueva referencia</RouterLink>
-          <RouterLink to="/logs" class="btn border border-white/25 bg-white/10 text-white no-underline hover:bg-white/15">Ver ejecuciones</RouterLink>
         </div>
       </div>
     </section>
