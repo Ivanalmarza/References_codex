@@ -37,6 +37,9 @@ async function loadSessions(): Promise<void> {
   error.value = null
   try {
     const response = await listLogs()
+    if (!response || response.ok !== true || !Array.isArray(response.sessions)) {
+      throw new Error('LOGS_INVALID_RESPONSE')
+    }
     sessions.value = response.sessions
     if (!selectedId.value && sessions.value.length) selectedId.value = sessions.value[0]?.sessionId || ''
     if (selectedId.value) await loadTail()
@@ -52,6 +55,7 @@ async function loadTail(): Promise<void> {
   loadingLog.value = true
   try {
     const response = await getLogTail(selectedId.value, 600)
+    if (!response || response.ok !== true) throw new Error('LOG_TAIL_INVALID_RESPONSE')
     tail.value = response.tail || ''
   } catch (reason) {
     notify.error(getProblemMessage(reason, 'No se ha podido cargar el log.'))

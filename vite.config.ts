@@ -7,22 +7,12 @@ export default defineConfig(({ mode }) => {
   const proxyTarget = env.VITE_DEV_PROXY_TARGET?.trim()
   const proxy: Record<string, string | ProxyOptions> | undefined = proxyTarget
     ? {
-        '/_auth': {
-          target: proxyTarget,
-          changeOrigin: true,
-          secure: false,
-        },
-        '/api': {
-          target: proxyTarget,
-          changeOrigin: true,
-          secure: false,
-          rewrite: (requestPath) => `/references-codex${requestPath}`,
-        },
+        '/_auth': { target: proxyTarget, changeOrigin: true, secure: false },
+        '/references-api': { target: proxyTarget, changeOrigin: true, secure: false },
       }
     : undefined
 
   return {
-    // Required by the axet-spa-app embedded deployment. Generated asset URLs stay relative.
     base: './',
     plugins: [vue(), tailwindcss()],
     server: {

@@ -28,33 +28,30 @@ export const useAppStore = defineStore('app', () => {
     loading.value = true
     error.value = null
 
-    const [bootstrapResult, userResult] = await Promise.allSettled([
-      getBootstrap(),
-      getCurrentUser(),
-    ])
+    try {
+      const data = await getBootstrap()
+      if (!data || data.ok !== true || !data.options) throw new Error('BOOTSTRAP_INVALID_RESPONSE')
+      bootstrap.value = data
 
-    if (bootstrapResult.status === 'fulfilled') {
-      bootstrap.value = bootstrapResult.value
-    }
-
-    if (userResult.status === 'fulfilled') {
-      user.value = userResult.value
-    } else if (bootstrap.value?.user) {
-      const login = bootstrap.value.user.login
-      const displayName = bootstrap.value.user.displayName || login
-      const email = bootstrap.value.user.email || (login.includes('@') ? login : '')
-      user.value = {
-        login,
-        displayName,
-        email,
-        initials: initials(displayName || login),
-        axetUserId: bootstrap.value.user.axetUserId,
-        roles: bootstrap.value.user.roles,
+      if (data.user?.login) {
+        const login = data.user.login
+        const displayName = data.user.displayName || login
+        const email = data.user.email || (login.includes('@') ? login : '')
+        user.value = {
+          login,
+          displayName,
+          email,
+          initials: initials(displayName || login),
+          axetUserId: data.user.axetUserId,
+          roles: data.user.roles || [],
+        }
+      } else {
+        // Secondary platform fallback only. The FLOWS bootstrap is authoritative.
+        try { user.value = await getCurrentUser() } catch { user.value = null }
       }
-    }
-
-    if (bootstrapResult.status === 'rejected') {
-      error.value = getProblemMessage(bootstrapResult.reason, 'No se ha podido cargar la aplicación.')
+    } catch (reason) {
+      error.value = getProblemMessage(reason, 'No se ha podido cargar la aplicación.')
+      user.value = null
     }
 
     initialized.value = true

@@ -24,6 +24,7 @@ type UserEditor = AdminUser & { isNew: boolean }
 const activeTab = ref<'files' | 'users'>('files')
 const loadingAdmin = ref(true)
 const admin = ref<AdminBootstrap | null>(null)
+const adminError = ref<string | null>(null)
 const model = ref('')
 const reasoning = ref('')
 const selectedFile = ref('')
@@ -49,15 +50,21 @@ function asMessage(value: unknown): string {
 
 async function loadAdmin(): Promise<void> {
   loadingAdmin.value = true
+  adminError.value = null
   try {
     const { data } = await api.get<AdminBootstrap>('admin/bootstrap')
+    if (!data || data.ok !== true || !data.settings || !Array.isArray(data.files) || !Array.isArray(data.logs)) {
+      throw new Error('ADMIN_BOOTSTRAP_INVALID_RESPONSE')
+    }
     admin.value = data
     model.value = data.settings.model
     reasoning.value = data.settings.reasoning
     if (!selectedFile.value && data.files.length) selectedFile.value = data.files[0]?.value || ''
     if (!selectedLog.value && data.logs.length) selectedLog.value = data.logs[0]?.value || ''
   } catch (error) {
-    notify.error(getProblemMessage(error, 'No se ha podido cargar la administración.'))
+    admin.value = null
+    adminError.value = getProblemMessage(error, 'No se ha podido cargar la administración.')
+    notify.error(adminError.value)
   } finally {
     loadingAdmin.value = false
   }
@@ -222,6 +229,7 @@ onMounted(() => void loadAdmin())
     </div>
 
     <template v-if="activeTab === 'files'">
+      <div v-if="adminError" class="error-banner">{{ adminError }}</div>
       <div v-if="loadingAdmin" class="surface-card text-sm text-slate-500">Cargando configuración administrativa...</div>
       <template v-else-if="admin">
         <div v-if="actionMessage" class="success-banner">{{ actionMessage }}</div>
