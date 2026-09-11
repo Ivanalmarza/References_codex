@@ -24,13 +24,13 @@ function text(value: unknown): string {
 function stringArray(value: unknown): string[] {
   if (Array.isArray(value)) return value.map(String).filter(Boolean)
   return text(value)
-    .split(/[;,\s]+/)
+    .split(/[;,\\s]+/)
     .map((item) => item.trim())
     .filter(Boolean)
 }
 
 function initials(value: string): string {
-  const chunks = value.split(/\s+/).filter(Boolean)
+  const chunks = value.split(/\\s+/).filter(Boolean)
   if (!chunks.length) return 'U'
   return chunks.slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')
 }
@@ -45,15 +45,23 @@ export async function getCurrentUser(): Promise<AppUser> {
   const raw = response.data?.user || response.data?.data || response.data || {}
   const displayName = text(
     raw.userName || raw.displayName || raw.name || raw.fullName || raw.login || raw.email,
-  ) || 'Usuario'
+  )
   const email = text(raw.email || raw.login || raw.preferred_username || raw.username)
   const login = text(raw.login || raw.preferred_username || raw.username || email || displayName)
 
+  // Some AXET deployments answer 200 with an empty object. Treat that as an
+  // unavailable platform identity so the Pinia store can fall back to the
+  // authenticated identity returned by /api/bootstrap.
+  if (!displayName && !email && !login) {
+    throw new Error('AUTH_USER_EMPTY')
+  }
+
+  const resolvedDisplayName = displayName || login || email
   return {
-    login,
-    displayName,
+    login: login || email || resolvedDisplayName,
+    displayName: resolvedDisplayName,
     email,
-    initials: initials(displayName || login),
+    initials: initials(resolvedDisplayName || login),
     axetUserId: text(raw.axetUserId || raw.userId || raw.id) || null,
     roles: stringArray(raw.userRoles || raw.roles),
   }
@@ -168,11 +176,11 @@ export async function runManaAction(payload: Record<string, unknown>): Promise<M
 
 function filenameFromDisposition(disposition: string | undefined, fallback: string): string {
   const value = disposition || ''
-  const encoded = value.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
+  const encoded = value.match(/filename\\*=UTF-8''([^;]+)/i)?.[1]
   if (encoded) {
     try { return decodeURIComponent(encoded) } catch { /* continue */ }
   }
-  const quoted = value.match(/filename="([^"]+)"/i)?.[1]
+  const quoted = value.match(/filename=\"([^\"]+)\"/i)?.[1]
   return quoted || fallback
 }
 

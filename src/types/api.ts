@@ -81,6 +81,8 @@ export interface BootstrapResponse {
   active: SessionSummary | null
   user: {
     login: string
+    displayName?: string
+    email?: string
     axetUserId: string | null
     roles: string[]
   }

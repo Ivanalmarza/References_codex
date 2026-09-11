@@ -41,11 +41,13 @@ export const useAppStore = defineStore('app', () => {
       user.value = userResult.value
     } else if (bootstrap.value?.user) {
       const login = bootstrap.value.user.login
+      const displayName = bootstrap.value.user.displayName || login
+      const email = bootstrap.value.user.email || (login.includes('@') ? login : '')
       user.value = {
         login,
-        displayName: login,
-        email: login.includes('@') ? login : '',
-        initials: initials(login),
+        displayName,
+        email,
+        initials: initials(displayName || login),
         axetUserId: bootstrap.value.user.axetUserId,
         roles: bootstrap.value.user.roles,
       }
