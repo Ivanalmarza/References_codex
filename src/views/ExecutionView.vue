@@ -25,6 +25,26 @@ let redirected = false
 const sessionId = computed(() => String(route.params.sessionId || ''))
 const session = computed(() => status.value?.session || null)
 const sourceEntries = computed(() => Object.entries(status.value?.sourceSummary || {}) as Array<[string, SourceSummaryEntry]>)
+const uploadsOnly = computed(() => {
+  const sources = session.value?.selectedSources || []
+  return sources.length === 1 && sources[0] === 'uploads'
+})
+const uploadedFiles = computed(() => status.value?.sourceSummary?.uploads?.files || [])
+const executionTitle = computed(() => {
+  const current = session.value
+  if (!current) return 'GeneraciÃ³n de referencia'
+  if (current.opportunityTitle) return current.opportunityTitle
+  if (uploadsOnly.value) {
+    if (uploadedFiles.value.length === 1) return uploadedFiles.value[0]?.name || 'Archivos propios'
+    if (uploadedFiles.value.length > 1) return String(uploadedFiles.value.length) + ' archivos propios'
+    return 'Archivos propios'
+  }
+  return current.project || 'GeneraciÃ³n de referencia'
+})
+const uploadConfigLabel = computed(() => {
+  const names = uploadedFiles.value.map((file) => file.name).filter(Boolean)
+  return names.length ? names.join(', ') : 'Archivos propios'
+})
 const progressWidth = computed(() => `${Math.max(0, Math.min(100, session.value?.progress || 0))}%`)
 const lastLogLines = computed(() => {
   const tail = status.value?.logs?.tail || ''
@@ -184,7 +204,7 @@ onBeforeUnmount(clearTimer)
 
       <section class="surface-card">
         <div class="flex flex-wrap items-center justify-between gap-3">
-          <div><p class="eyebrow">Fuentes materializadas</p><h2 class="section-title mt-1">Documentos usados por el backend</h2></div>
+          <div><p class="eyebrow">Fuentes materializadas</p><h2 class="section-title mt-1">Documentos utilizados en la referencia</h2></div>
         </div>
         <div class="mt-5 grid gap-4 md:grid-cols-3">
           <article v-for="([source, entry]) in sourceEntries" :key="source" class="rounded-2xl border p-4" :class="entry.active ? 'border-blue-200 bg-blue-50/50 dark:border-blue-900/60 dark:bg-blue-950/20' : 'border-slate-200 bg-slate-50/50 opacity-65 dark:border-slate-700 dark:bg-slate-950/40'">

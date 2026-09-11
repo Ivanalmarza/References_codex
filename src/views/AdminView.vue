@@ -215,7 +215,7 @@ onMounted(() => void loadAdmin())
       <div>
         <p class="eyebrow">Administración</p>
         <h1 class="page-title mt-2">Herramientas operativas</h1>
-        <p class="page-description">Mismas operaciones del frontend Form.io anterior, ahora expuestas mediante API HTTP a Vue.</p>
+        <p class="page-description">Gestiona la configuraciÃ³n, los archivos, los procesos de mantenimiento y los usuarios de la aplicaciÃ³n.</p>
       </div>
       <div class="flex flex-wrap gap-2">
         <RouterLink to="/logs" class="btn-secondary no-underline">Ejecuciones y logs</RouterLink>
@@ -282,17 +282,17 @@ onMounted(() => void loadAdmin())
         </section>
 
         <section class="surface-card">
-          <p class="eyebrow">Procesos del flujo original</p>
+          <p class="eyebrow">Procesos</p>
           <h2 class="section-title mt-1">Sincronización y mantenimiento</h2>
           <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <button class="btn-secondary justify-start" :disabled="!!actionBusy" @click="runAction('download-sharepoint')">Download from SP</button>
-            <button class="btn-secondary justify-start" :disabled="!!actionBusy" @click="runAction('download-new-project')">Download new project</button>
-            <button class="btn-secondary justify-start" :disabled="!!actionBusy" @click="runAction('refresh-mana')">Descarga New MANA</button>
-            <button class="btn-secondary justify-start" :disabled="!!actionBusy" @click="runAction('refresh-opportunities')">Cargar Oportunidades</button>
-            <button class="btn-secondary justify-start" :disabled="!!actionBusy" @click="runAction('refresh-units-projects')">Cargar Units/Projects</button>
-            <button class="btn-secondary justify-start" :disabled="!!actionBusy" @click="runAction('create-reference-base')">Crear Referencias Base</button>
-            <button class="btn-secondary justify-start" :disabled="!!actionBusy" @click="runAction('install-dependencies')">Instalar Dependencias</button>
-            <button class="btn-secondary justify-start" :disabled="!!actionBusy" @click="loadAdmin">Actualizar panel</button>
+            <button class="btn-secondary justify-start !bg-slate-50 hover:!bg-slate-100 dark:!bg-slate-900 dark:hover:!bg-slate-800" :disabled="!!actionBusy" @click="runAction('download-sharepoint')">Download from SP</button>
+            <button class="btn-secondary justify-start !bg-slate-50 hover:!bg-slate-100 dark:!bg-slate-900 dark:hover:!bg-slate-800" :disabled="!!actionBusy" @click="runAction('download-new-project')">Download new project</button>
+            <button class="btn-secondary justify-start !bg-slate-50 hover:!bg-slate-100 dark:!bg-slate-900 dark:hover:!bg-slate-800" :disabled="!!actionBusy" @click="runAction('refresh-mana')">Descarga New MANA</button>
+            <button class="btn-secondary justify-start !bg-slate-50 hover:!bg-slate-100 dark:!bg-slate-900 dark:hover:!bg-slate-800" :disabled="!!actionBusy" @click="runAction('refresh-opportunities')">Cargar Oportunidades</button>
+            <button class="btn-secondary justify-start !bg-slate-50 hover:!bg-slate-100 dark:!bg-slate-900 dark:hover:!bg-slate-800" :disabled="!!actionBusy" @click="runAction('refresh-units-projects')">Cargar Units/Projects</button>
+            <button class="btn-secondary justify-start !bg-slate-50 hover:!bg-slate-100 dark:!bg-slate-900 dark:hover:!bg-slate-800" :disabled="!!actionBusy" @click="runAction('create-reference-base')">Crear Referencias Base</button>
+            <button class="btn-secondary justify-start !bg-slate-50 hover:!bg-slate-100 dark:!bg-slate-900 dark:hover:!bg-slate-800" :disabled="!!actionBusy" @click="runAction('install-dependencies')">Instalar Dependencias</button>
+            <button class="btn-secondary justify-start !bg-slate-50 hover:!bg-slate-100 dark:!bg-slate-900 dark:hover:!bg-slate-800" :disabled="!!actionBusy" @click="loadAdmin">Actualizar panel</button>
           </div>
           <p v-if="admin.cache?.builtAt" class="mt-4 text-xs text-slate-500">Última caché de selectores: {{ admin.cache.builtAt }} · {{ admin.cache.buildReason || 'sin motivo registrado' }}</p>
         </section>
@@ -300,7 +300,7 @@ onMounted(() => void loadAdmin())
         <section class="surface-card border-red-200 dark:border-red-950">
           <p class="eyebrow text-red-600">Borrado</p>
           <h2 class="section-title mt-1">Repositorios locales</h2>
-          <p class="mt-2 text-sm text-slate-500">Equivale a los tres botones de borrado del formulario Admin Files original.</p>
+          <p class="mt-2 text-sm text-slate-500">Elimina datos generados o espacios de trabajo almacenados localmente.</p>
           <div class="mt-5 flex flex-wrap gap-3">
             <button class="btn-secondary text-red-700" :disabled="!!actionBusy" @click="runAction('delete-data', {}, '¿Borrar todo el contenido de /data?')">Borrar /data</button>
             <button class="btn-secondary text-red-700" :disabled="!!actionBusy" @click="runAction('delete-processed', {}, '¿Borrar todo el contenido de /procesado?')">Borrar /procesado</button>

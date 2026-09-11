@@ -5,6 +5,7 @@ import StatusBadge from '../components/StatusBadge.vue'
 import EmptyState from '../components/EmptyState.vue'
 import { useAppStore } from '../stores/app'
 import { getProblemMessage } from '../services/api'
+import { sourceLabel } from '../utils/format'
 import { notify } from '../services/notyf'
 
 const store = useAppStore()

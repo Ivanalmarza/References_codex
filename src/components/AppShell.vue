@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import BrandMark from './BrandMark.vue'
-import StatusBadge from './StatusBadge.vue'
+
 import { useAppStore } from '../stores/app'
 import { useThemeStore } from '../stores/theme'
 
@@ -48,8 +48,8 @@ function isCurrent(item: { name: string }): boolean {
             :to="active.ready ? `/results/${active.sessionId}` : `/execution/${active.sessionId}`"
             class="hidden items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs no-underline dark:border-slate-700 dark:bg-slate-900 sm:flex"
           >
+            <span class="h-2 w-2 rounded-full bg-emerald-500" :class="{ 'animate-pulse': !active.terminal }"></span>
             <span class="font-bold text-slate-600 dark:text-slate-300">Activa</span>
-            <StatusBadge :status="active.status" :ready="active.ready" :failed="active.failed" :stopped="active.stopped" />
           </RouterLink>
 
           <button class="btn-ghost !h-10 !w-10 !p-0" :aria-label="themeStore.isDark ? 'Activar modo claro' : 'Activar modo oscuro'" @click="themeStore.toggleMode">

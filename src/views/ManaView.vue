@@ -79,7 +79,7 @@ async function execute(action: 'upload' | 'checkRequired' | 'deleteDoc' | 'delet
     <header>
       <p class="eyebrow">Administración MANA</p>
       <h1 class="page-title mt-2">Documentos de oportunidad</h1>
-      <p class="page-description">Sube documentos, comprueba la presencia de PDF/CSV o elimina un fichero. Las acciones reutilizan los nodos Microsoft Graph ya configurados en FLOWS.</p>
+      <p class="page-description">Sube documentos, comprueba la presencia de PDF/CSV o elimina un fichero asociado a la oportunidad.</p>
     </header>
 
     <section class="surface-card">
