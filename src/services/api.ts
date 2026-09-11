@@ -3,27 +3,50 @@ import type { ApiProblem } from '../types/api'
 
 let apiInstance: AxiosInstance | null = null
 
-function normalizeApiBaseUrl(value: string | undefined): string {
+function trimTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, '')
+}
+
+function normalizeFallbackBaseUrl(value: string | undefined): string {
   const raw = String(value || '/references-api/').trim() || '/references-api/'
-  if (/^[a-z][a-z\d+.-]*:\/\//i.test(raw) || raw.startsWith('//')) {
-    throw new Error(`VITE_API_BASE_URL debe ser same-origin. Valor no permitido: ${raw}`)
-  }
+  if (/^[a-z][a-z\d+.-]*:\/\//i.test(raw) || raw.startsWith('//')) return raw.endsWith('/') ? raw : `${raw}/`
   const base = raw.startsWith('/') || raw.startsWith('.') ? raw : `/${raw}`
   return base.endsWith('/') ? base : `${base}/`
+}
+
+/**
+ * aXet SPA App injects window.AXET_CONFIG into the served HTML.
+ * In production, flowsBaseUrl is the authoritative prefix for Node-RED http-in endpoints.
+ * This is important in Docker Cloud, where the flow is mounted below a dynamic /flows/cloud/<id> prefix.
+ */
+export function getApiBaseUrl(): string {
+  const runtimeBase = typeof window !== 'undefined'
+    ? String(window.AXET_CONFIG?.flowsBaseUrl || '').trim()
+    : ''
+
+  if (runtimeBase) return `${trimTrailingSlash(runtimeBase)}/references-api/`
+  return normalizeFallbackBaseUrl(import.meta.env.VITE_API_BASE_URL)
+}
+
+export function getDeploymentBasePath(): string {
+  if (typeof window === 'undefined') return ''
+  return String(
+    window.AXET_CONFIG?.deploymentBasePath ||
+    window.AXET_CONFIG?.basePath ||
+    '',
+  ).trim().replace(/\/+$/, '')
 }
 
 export function createApi(): AxiosInstance {
   if (apiInstance) return apiInstance
 
   apiInstance = axios.create({
-    baseURL: normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL),
+    baseURL: getApiBaseUrl(),
     withCredentials: true,
     timeout: 45_000,
     headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
   })
 
-  // If axet-spa-app serves index.html for an API URL by mistake, fail loudly
-  // instead of letting Vue access fields such as data.settings on HTML text.
   apiInstance.interceptors.response.use((response) => {
     const contentType = String(response.headers?.['content-type'] || '').toLowerCase()
     if (contentType.includes('text/html') && response.config.responseType !== 'blob') {

@@ -8,14 +8,14 @@ Frontend Vue 3 para el caso de uso References. Esta variante es el **cutover fin
 Browser
   -> axet-spa-app (Git, build Vite, Okta FLOWS)
        -> Vue hash router
-       -> ./api/*
+       -> /references-api/*
           -> HTTP In / Function adapters / HTTP Response
              -> backend de negocio existente de References
              -> SharePoint / NoSQL / Codex
              -> /internal-storage-files/files
 ```
 
-El usuario se obtiene primero mediante `/_auth/user`. Si esa respuesta de plataforma viene vacía, Vue utiliza la identidad autenticada que `GET ./api/bootstrap` obtiene de `msg.__axetFlowsSecurityContext`.
+El usuario se obtiene primero mediante `/_auth/user`. Si esa respuesta de plataforma viene vacía, Vue utiliza la identidad autenticada que `GET /references-api/bootstrap` obtiene de `msg.__axetFlowsSecurityContext`.
 
 ## Configuración del nodo SPA
 
@@ -68,7 +68,7 @@ Las tres variables Salesforce solo son necesarias para la acción administrativa
 
 ## API principal
 
-Todas las llamadas del navegador usan `./api/`, que bajo el `appId` se resuelve a `/references-codex/api/...`. La API cubre bootstrap, búsqueda paginada de oportunidades, uploads temporales, ejecuciones, stop/release, progreso/resultados/logs, generación Excel/plantilla, SharePoint, MANA, administración de Internal Files y CRUD de usuarios Okta/NoSQL. Las pantallas administrativas conservan el acceso ROLE_PUBLIC del menú anterior: las rutas exigen identidad autenticada de FLOWS, pero no añaden una restricción ROLE_ADMIN nueva.
+Todas las llamadas del navegador usan `/references-api/`, deliberadamente fuera de la ruta del `axet-spa-app`, para que el fallback del SPA no intercepte las peticiones HTTP In. La API cubre bootstrap, búsqueda paginada de oportunidades, uploads temporales, ejecuciones, stop/release, progreso/resultados/logs, generación Excel/plantilla, SharePoint, MANA, administración de Internal Files y CRUD de usuarios Okta/NoSQL. Las pantallas administrativas conservan el acceso ROLE_PUBLIC del menú anterior: las rutas exigen identidad autenticada de FLOWS, pero no añaden una restricción ROLE_ADMIN nueva.
 
 ## Build local
 
@@ -82,3 +82,15 @@ Vite usa `base: './'` y Vue Router usa hash history para que el SPA funcione baj
 ## Ajuste obligatorio al importar en un proyecto FLOWS nuevo
 
 Los cuatro nodos `use-case` conservan su `usecaseid`, pero el `projectid` se entrega vacío a propósito para no apuntar accidentalmente al proyecto antiguo. Tras importar, selecciona el proyecto nuevo en esos nodos y despliega.
+
+
+## aXet SPA App runtime integration
+
+This build follows the SPA App 1.0.1 / Flows 6.5 deployment contract:
+
+- Vite uses `base: './'`.
+- Production REST calls are built from `window.AXET_CONFIG.flowsBaseUrl`.
+- Axios sends `withCredentials: true`.
+- Initial user data is read from `window.AXET_CONFIG.user`.
+- Session refresh uses `${deploymentBasePath}/_auth/user`.
+- The flow bridges the documented `msg._axetFlowsSecurityContext` into the legacy `msg.__axetFlowsSecurityContext` expected by the existing References backend.

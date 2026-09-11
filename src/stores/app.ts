@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { getBootstrap, getCurrentUser } from '../services/referenceApi'
+import { getBootstrap, getCurrentUser, getInjectedUser } from '../services/referenceApi'
 import { getProblemMessage } from '../services/api'
 import type { AppUser, BootstrapResponse, SessionSummary } from '../types/api'
 
@@ -11,6 +11,21 @@ function initials(value: string): string {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join('') || 'U'
+}
+
+function bootstrapUser(data: BootstrapResponse): AppUser | null {
+  if (!data.user?.login && !data.user?.displayName && !data.user?.email) return null
+  const login = data.user.login || data.user.email || data.user.displayName || ''
+  const displayName = data.user.displayName || data.user.email || login
+  const email = data.user.email || (login.includes('@') ? login : '')
+  return {
+    login,
+    displayName,
+    email,
+    initials: initials(displayName || login),
+    axetUserId: data.user.axetUserId,
+    roles: data.user.roles || [],
+  }
 }
 
 export const useAppStore = defineStore('app', () => {
@@ -28,30 +43,40 @@ export const useAppStore = defineStore('app', () => {
     loading.value = true
     error.value = null
 
-    try {
-      const data = await getBootstrap()
-      if (!data || data.ok !== true || !data.options) throw new Error('BOOTSTRAP_INVALID_RESPONSE')
-      bootstrap.value = data
+    // The SPA node injects AXET_CONFIG before the Vue bundle loads.
+    // Use it immediately for the header while the backend bootstrap is resolving.
+    const injected = getInjectedUser()
+    if (injected) user.value = injected
 
-      if (data.user?.login) {
-        const login = data.user.login
-        const displayName = data.user.displayName || login
-        const email = data.user.email || (login.includes('@') ? login : '')
-        user.value = {
-          login,
-          displayName,
-          email,
-          initials: initials(displayName || login),
-          axetUserId: data.user.axetUserId,
-          roles: data.user.roles || [],
-        }
+    const [bootstrapResult, currentUserResult] = await Promise.allSettled([
+      getBootstrap(),
+      getCurrentUser(),
+    ])
+
+    if (bootstrapResult.status === 'fulfilled') {
+      const data = bootstrapResult.value
+      if (!data || data.ok !== true || !data.options) {
+        error.value = 'BOOTSTRAP_INVALID_RESPONSE'
       } else {
-        // Secondary platform fallback only. The FLOWS bootstrap is authoritative.
-        try { user.value = await getCurrentUser() } catch { user.value = null }
+        bootstrap.value = data
+        if (currentUserResult.status === 'fulfilled') {
+          user.value = currentUserResult.value
+        } else {
+          user.value = bootstrapUser(data) || injected
+        }
       }
-    } catch (reason) {
-      error.value = getProblemMessage(reason, 'No se ha podido cargar la aplicación.')
-      user.value = null
+    } else {
+      const runtimeAuthEnabled = window.AXET_CONFIG?.authEnabled
+      error.value = runtimeAuthEnabled === false
+        ? 'El nodo SPA está sirviendo la aplicación sin OIDC/Okta habilitado.'
+        : getProblemMessage(bootstrapResult.reason, 'No se ha podido cargar la aplicación.')
+      if (currentUserResult.status === 'fulfilled') user.value = currentUserResult.value
+    }
+
+    if (!user.value && !error.value) {
+      error.value = window.AXET_CONFIG?.authEnabled === false
+        ? 'El nodo SPA está sirviendo la aplicación sin OIDC/Okta habilitado.'
+        : 'No se ha podido resolver el usuario autenticado.'
     }
 
     initialized.value = true

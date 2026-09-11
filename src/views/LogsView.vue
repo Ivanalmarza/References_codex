@@ -81,7 +81,7 @@ onBeforeUnmount(() => { if (timer !== null) window.clearInterval(timer) })
       <div>
         <p class="eyebrow">Observabilidad</p>
         <h1 class="page-title mt-2">Ejecuciones y logs</h1>
-        <p class="page-description">Consulta las sesiones que te pertenecen y el final de su log unificado. Los administradores pueden visualizar el ámbito autorizado por FLOWS.</p>
+        <p class="page-description">Consulta las sesiones disponibles en codex-workspace y el final de su log unificado, igual que en el visor anterior.</p>
       </div>
       <button class="btn-secondary" :disabled="loadingList" @click="loadSessions">Actualizar lista</button>
     </header>
@@ -112,7 +112,7 @@ onBeforeUnmount(() => { if (timer !== null) window.clearInterval(timer) })
             <div class="mt-2 flex justify-between text-[11px] text-slate-400"><span>{{ formatDate(item.updatedAt) }}</span><span>{{ formatBytes(item.logSize) }}</span></div>
           </button>
         </div>
-        <EmptyState v-else class="m-4" title="Sin ejecuciones" description="Todavía no hay sesiones disponibles para este usuario." />
+        <EmptyState v-else class="m-4" title="Sin ejecuciones" description="No se encontraron sesiones en codex-workspace." />
       </section>
 
       <section class="surface-card min-w-0">

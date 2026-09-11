@@ -1,5 +1,5 @@
 import axios, { type AxiosResponse } from 'axios'
-import { getApi } from './api'
+import { getApi, getDeploymentBasePath } from './api'
 import type {
   AppUser,
   BootstrapResponse,
@@ -22,49 +22,71 @@ function text(value: unknown): string {
 }
 
 function stringArray(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map(String).filter(Boolean)
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean)
   return text(value)
-    .split(/[;,\\s]+/)
+    .split(/[;,\s]+/)
     .map((item) => item.trim())
     .filter(Boolean)
 }
 
 function initials(value: string): string {
-  const chunks = value.split(/\\s+/).filter(Boolean)
+  const chunks = value.split(/\s+/).filter(Boolean)
   if (!chunks.length) return 'U'
   return chunks.slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')
 }
 
-export async function getCurrentUser(): Promise<AppUser> {
-  // Platform endpoint: intentionally rooted at the current origin.
-  const response = await axios.get('/_auth/user', {
-    withCredentials: true,
-    timeout: 20_000,
-    headers: { Accept: 'application/json' },
-  })
-  const raw = response.data?.user || response.data?.data || response.data || {}
-  const displayName = text(
-    raw.userName || raw.displayName || raw.name || raw.fullName || raw.login || raw.email,
-  )
+function toAppUser(rawValue: unknown): AppUser | null {
+  const raw = rawValue && typeof rawValue === 'object' ? rawValue as Record<string, unknown> : {}
+  const displayName = text(raw.userName || raw.displayName || raw.name || raw.fullName || raw.login || raw.email)
   const email = text(raw.email || raw.login || raw.preferred_username || raw.username)
-  const login = text(raw.login || raw.preferred_username || raw.username || email || displayName)
+  const login = text(raw.login || raw.preferred_username || raw.username || email || raw.sub || raw.oktaId || displayName)
+  const stableId = text(raw.axetUserId || raw.userId || raw.oktaId || raw.sub || raw.id)
 
-  // Some AXET deployments answer 200 with an empty object. Treat that as an
-  // unavailable platform identity so the Pinia store can fall back to the
-  // authenticated identity returned by /api/bootstrap.
-  if (!displayName && !email && !login) {
-    throw new Error('AUTH_USER_EMPTY')
-  }
+  if (!displayName && !email && !login && !stableId) return null
 
-  const resolvedDisplayName = displayName || login || email
+  const resolvedDisplayName = displayName || email || login || stableId
+  const resolvedLogin = login || email || stableId || resolvedDisplayName
   return {
-    login: login || email || resolvedDisplayName,
+    login: resolvedLogin,
     displayName: resolvedDisplayName,
     email,
-    initials: initials(resolvedDisplayName || login),
-    axetUserId: text(raw.axetUserId || raw.userId || raw.id) || null,
+    initials: initials(resolvedDisplayName || resolvedLogin),
+    axetUserId: stableId || null,
     roles: stringArray(raw.userRoles || raw.roles),
   }
+}
+
+/** Initial render source recommended by the aXet SPA App manual. */
+export function getInjectedUser(): AppUser | null {
+  if (typeof window === 'undefined') return null
+  return toAppUser(window.AXET_CONFIG?.user || null)
+}
+
+/**
+ * Refresh/verify the OIDC session using the SPA deploymentBasePath.
+ * Falls back to the injected user if the refresh endpoint is temporarily unavailable.
+ */
+export async function getCurrentUser(): Promise<AppUser> {
+  const injected = getInjectedUser()
+  const deploymentBasePath = getDeploymentBasePath()
+  const url = deploymentBasePath ? `${deploymentBasePath}/_auth/user` : '/_auth/user'
+
+  try {
+    const response = await axios.get(url, {
+      withCredentials: true,
+      timeout: 20_000,
+      headers: { Accept: 'application/json' },
+    })
+    const raw = response.data?.user || response.data?.data || response.data || {}
+    const resolved = toAppUser(raw)
+    if (resolved) return resolved
+  } catch (error) {
+    if (injected) return injected
+    throw error
+  }
+
+  if (injected) return injected
+  throw new Error('AUTH_USER_EMPTY')
 }
 
 export async function getBootstrap(): Promise<BootstrapResponse> {

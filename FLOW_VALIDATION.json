@@ -1,60 +1,19 @@
 {
-  "flowNodes": 1124,
+  "version": "V3",
+  "flowNodes": 1150,
   "httpIn": 26,
   "httpResponse": 4,
   "spa": 1,
   "forms": 0,
   "legacyApps": 0,
   "legacyViewActions": 0,
-  "routes": [
-    "DELETE /references-codex/api/admin/users/:id",
-    "DELETE /references-codex/api/uploads/:uploadId",
-    "GET /references-codex/api/admin/bootstrap",
-    "GET /references-codex/api/admin/download",
-    "GET /references-codex/api/admin/users",
-    "GET /references-codex/api/admin/users/:id",
-    "GET /references-codex/api/admin/users/meta",
-    "GET /references-codex/api/bootstrap",
-    "GET /references-codex/api/executions/:sessionId",
-    "GET /references-codex/api/executions/:sessionId/results",
-    "GET /references-codex/api/executions/active",
-    "GET /references-codex/api/health",
-    "GET /references-codex/api/logs",
-    "GET /references-codex/api/mana/bootstrap",
-    "GET /references-codex/api/opportunities",
-    "POST /references-codex/api/admin/actions",
-    "POST /references-codex/api/admin/users",
-    "POST /references-codex/api/executions",
-    "POST /references-codex/api/executions/:sessionId/export/excel",
-    "POST /references-codex/api/executions/:sessionId/export/template",
-    "POST /references-codex/api/executions/:sessionId/release",
-    "POST /references-codex/api/executions/:sessionId/sharepoint",
-    "POST /references-codex/api/executions/:sessionId/stop",
-    "POST /references-codex/api/mana/actions",
-    "POST /references-codex/api/uploads",
-    "PUT /references-codex/api/admin/users/:id"
-  ],
-  "crossTabDirectWires": 0,
+  "authBridgeNodes": 26,
+  "apiPrefix": "/references-api/",
+  "runtimeApiBase": "window.AXET_CONFIG.flowsBaseUrl",
+  "frontendInitialUser": "window.AXET_CONFIG.user",
+  "frontendAuthRefresh": "${deploymentBasePath}/_auth/user",
+  "nodeRedAuthContext": "msg._axetFlowsSecurityContext",
+  "legacyCompatibilityContext": "msg.__axetFlowsSecurityContext",
   "danglingReferences": 0,
-  "oktaConfigNodes": 1,
-  "legacyPublicAccessPreserved": true,
-  "useCaseProjectIdsCleared": 4,
-  "useCaseNodes": [
-    {
-      "id": "fb679fa8adfc7c89",
-      "usecaseid": "UC-0518-FLOW-001"
-    },
-    {
-      "id": "14d78646aa4e2ac6",
-      "usecaseid": "UC-0518-FLOW-001"
-    },
-    {
-      "id": "bef88e4710771436",
-      "usecaseid": "UC-0518-FLOW-001"
-    },
-    {
-      "id": "b3306937a263fa51",
-      "usecaseid": "UC-0595-FLOW-001"
-    }
-  ]
+  "duplicateRoutes": 0
 }
