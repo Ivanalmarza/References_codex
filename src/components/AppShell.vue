@@ -98,11 +98,6 @@ function isCurrent(item: { name: string }): boolean {
             {{ item.label }}
           </RouterLink>
         </nav>
-
-        <div class="mt-6 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-4 dark:border-blue-950 dark:from-blue-950/40 dark:to-slate-950">
-          <p class="text-xs font-black uppercase tracking-wider text-blue-700 dark:text-blue-300">Nuevo frontend</p>
-          <p class="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-300">Vue se comunica con FLOWS mediante API HTTP y conserva el procesamiento, la sesión y las salidas existentes.</p>
-        </div>
       </aside>
 
       <button v-if="mobileOpen" class="fixed inset-0 top-16 z-20 bg-slate-950/30 lg:hidden" aria-label="Cerrar menú" @click="mobileOpen = false"></button>

@@ -169,7 +169,7 @@ onMounted(() => void load())
       <div>
         <p class="eyebrow">Detalle final</p>
         <h1 class="page-title mt-2">Resultado de la ejecución</h1>
-        <p class="page-description">Consulta las respuestas, métricas, artefactos y el reporte final. Los entregables solo se habilitan cuando FLOWS confirma una ejecución completada correctamente.</p>
+        <p class="page-description">Consulta las respuestas, métricas, archivos generados y el reporte final. Los entregables se habilitan cuando la ejecución finaliza correctamente.</p>
       </div>
       <button class="btn-secondary" :disabled="loading" @click="load">
         <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6v5h-5M4 18v-5h5" /><path d="M18.5 9A7 7 0 0 0 6 6.5L4 9M5.5 15A7 7 0 0 0 18 17.5l2-2.5" /></svg>

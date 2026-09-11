@@ -36,7 +36,7 @@ onMounted(() => void refresh())
       <div class="relative max-w-3xl">
         <p class="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">Reference Generator</p>
         <h1 class="mt-3 text-3xl font-black tracking-tight sm:text-4xl">{{ greeting }}, {{ store.user?.displayName?.split(' ')[0] || 'usuario' }}</h1>
-        <p class="mt-4 max-w-2xl text-sm leading-6 text-blue-100 sm:text-base">Genera referencias trazables combinando proyectos procesados, oportunidades MANA y archivos propios. El procesamiento sigue ejecutándose en FLOWS; Vue gestiona la experiencia de usuario y el seguimiento.</p>
+        <p class="mt-4 max-w-2xl text-sm leading-6 text-blue-100 sm:text-base">Genera referencias trazables combinando proyectos procesados, oportunidades MANA y archivos propios.</p>
         <div class="mt-6 flex flex-wrap gap-3">
           <RouterLink to="/new" class="btn bg-white text-[#0b2f55] no-underline hover:bg-blue-50">Crear nueva referencia</RouterLink>
           <RouterLink to="/logs" class="btn border border-white/25 bg-white/10 text-white no-underline hover:bg-white/15">Ver ejecuciones</RouterLink>
@@ -62,8 +62,8 @@ onMounted(() => void refresh())
             <StatusBadge :status="active.status" :ready="active.ready" :failed="active.failed" :stopped="active.stopped" />
             <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">{{ active.sessionId }}</span>
           </div>
-          <h3 class="mt-3 text-xl font-black text-slate-900 dark:text-white">{{ active.opportunityTitle || active.project || 'Ejecución de referencias' }}</h3>
-          <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ active.selectedSources.join(' + ') || active.sourceType }} · {{ active.template || 'Plantilla pendiente' }}</p>
+          <h3 class="mt-3 text-xl font-black text-slate-900 dark:text-white">{{ active.opportunityTitle || (active.selectedSources.length === 1 && active.selectedSources[0] === 'uploads' ? 'Referencia desde archivos propios' : active.project) || 'Generación de referencia' }}</h3>
+          <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ active.selectedSources.map(sourceLabel).join(' + ') || sourceLabel(active.sourceType) }} · {{ active.template || 'Plantilla pendiente' }}</p>
           <div class="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
             <div class="h-full rounded-full bg-gradient-to-r from-[#0b2f55] to-blue-500 transition-all" :style="{ width: `${active.progress}%` }"></div>
           </div>
@@ -91,7 +91,7 @@ onMounted(() => void refresh())
       <article class="surface-card-flat p-5">
         <span class="grid h-11 w-11 place-items-center rounded-xl bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"><svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M7 9l5-5 5 5M5 14v5h14v-5" /></svg></span>
         <h2 class="mt-4 font-extrabold text-slate-900 dark:text-white">Archivos propios</h2>
-        <p class="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">Añade documentos específicos y aplica la prioridad uploads &gt; oportunidad &gt; procesado.</p>
+        <p class="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">Añade documentos específicos para generar la referencia con información propia.</p>
       </article>
     </section>
   </div>

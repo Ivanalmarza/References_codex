@@ -104,7 +104,7 @@ function onDrop(event: DragEvent): void {
           <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M7 9l5-5 5 5M5 14v5h14v-5" /></svg>
         </span>
         <p class="mt-3 text-sm font-extrabold text-slate-800 dark:text-slate-100">{{ busy ? `Subiendo ${activeName}...` : 'Arrastra archivos o pulsa para seleccionarlos' }}</p>
-        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Límite lógico de 250 MB por archivo; el proxy o FLOWS pueden aplicar un límite HTTP inferior. Se envían de forma secuencial.</p>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Tamaño máximo recomendado: 250 MB por archivo. Los archivos se suben de forma secuencial.</p>
       </div>
     </label>
 

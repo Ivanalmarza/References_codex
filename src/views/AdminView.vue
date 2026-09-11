@@ -215,7 +215,7 @@ onMounted(() => void loadAdmin())
       <div>
         <p class="eyebrow">Administración</p>
         <h1 class="page-title mt-2">Herramientas operativas</h1>
-        <p class="page-description">Gestiona la configuraciÃ³n, los archivos, los procesos de mantenimiento y los usuarios de la aplicaciÃ³n.</p>
+        <p class="page-description">Gestiona la configuración, los archivos, los procesos de mantenimiento y los usuarios de la aplicación.</p>
       </div>
       <div class="flex flex-wrap gap-2">
         <RouterLink to="/logs" class="btn-secondary no-underline">Ejecuciones y logs</RouterLink>

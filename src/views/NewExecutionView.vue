@@ -6,6 +6,7 @@ import OpportunityPicker from '../components/OpportunityPicker.vue'
 import { useAppStore } from '../stores/app'
 import { startExecution } from '../services/referenceApi'
 import { getProblemMessage } from '../services/api'
+import { sourceLabel } from '../utils/format'
 import { notify } from '../services/notyf'
 import type { ExecutionRequest, OpportunityItem, UploadToken } from '../types/api'
 
@@ -118,11 +119,11 @@ async function submit(): Promise<void> {
     <header>
       <p class="eyebrow">Nueva generación</p>
       <h1 class="page-title mt-2">Configura la referencia</h1>
-      <p class="page-description">Combina una o varias fuentes. Los valores se envían al mismo contrato que utilizaba Form.io y el procesamiento continúa en los Functions actuales de FLOWS.</p>
+      <p class="page-description">Combina una o varias fuentes de información y configura el idioma, la plantilla y el formato de salida.</p>
     </header>
 
     <div v-if="store.activeSession && !store.activeSession.terminal" class="warning-banner">
-      Hay una ejecución activa: <strong>{{ store.activeSession.status }}</strong>. Al iniciar una nueva, FLOWS solicitará la parada de la anterior antes de crear la nueva sesión.
+      Hay una ejecución activa: <strong>{{ store.activeSession.status }}</strong>. Al iniciar una nueva, se solicitará la parada de la ejecución actual antes de crear la nueva sesión.
     </div>
     <div v-if="pageError" class="error-banner"><strong>Revisa la configuración:</strong> {{ pageError }}</div>
 
@@ -132,7 +133,7 @@ async function submit(): Promise<void> {
           <div>
             <p class="eyebrow">1 · Fuentes</p>
             <h2 class="section-title mt-1">Selecciona la información de entrada</h2>
-            <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Puedes activar varias fuentes. En conflictos de nombre prevalece: uploads, oportunidad y proyecto procesado.</p>
+            <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Puedes activar varias fuentes. Si un mismo dato aparece en varias, tendrán prioridad los archivos propios, después la oportunidad y, por último, el proyecto procesado.</p>
           </div>
           <span class="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">{{ selectedSources.length }} activa(s)</span>
         </div>
@@ -185,7 +186,7 @@ async function submit(): Promise<void> {
       <section v-if="form.includeOpportunity" class="surface-card">
         <p class="eyebrow">Oportunidad MANA</p>
         <h2 class="section-title mt-1">Selecciona la oportunidad</h2>
-        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">La búsqueda se realiza en FLOWS de forma filtrada y paginada. El navegador no recibe el índice completo.</p>
+        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">La búsqueda se realiza de forma filtrada y paginada para mostrar únicamente las oportunidades relevantes.</p>
         <div class="mt-5">
           <OpportunityPicker v-model="selectedOpportunity" :sectors="options?.opportunitySectors || []" :disabled="submitting" @update:selection="setOpportunitySelection" />
         </div>
@@ -194,7 +195,7 @@ async function submit(): Promise<void> {
       <section v-if="form.includeUploads" class="surface-card">
         <p class="eyebrow">Archivos propios</p>
         <h2 class="section-title mt-1">Añade documentación</h2>
-        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Los archivos se guardan temporalmente y FLOWS los materializa en el workspace de la sesión al comenzar.</p>
+        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Los archivos se adjuntan a esta ejecución y se utilizarán como fuente de información para generar la referencia.</p>
         <div class="mt-5"><FileUploader v-model="uploads" scope="execution" /></div>
       </section>
 
@@ -232,8 +233,8 @@ async function submit(): Promise<void> {
 
       <div class="surface-card flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p class="font-extrabold text-slate-900 dark:text-white">{{ selectedSources.length ? `Fuentes: ${selectedSources.join(' + ')}` : 'Selecciona al menos una fuente' }}</p>
-          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">La petición devolverá una sesión inmediatamente y el proceso continuará de forma desacoplada.</p>
+          <p class="font-extrabold text-slate-900 dark:text-white">{{ selectedSources.length ? `Fuentes: ${selectedSources.map(sourceLabel).join(' + ')}` : 'Selecciona al menos una fuente' }}</p>
+          <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Podrás seguir el progreso de la generación desde la pantalla de ejecución.</p>
         </div>
         <button type="submit" class="btn-primary min-w-52" :disabled="submitting">
           <span v-if="submitting" class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
