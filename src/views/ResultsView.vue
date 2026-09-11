@@ -9,6 +9,7 @@ import {
   exportExcel,
   exportTemplate,
   getExecutionResults,
+  getExecutionStatus,
   publishToSharePoint,
   releaseExecution,
   saveBlobResponse,
@@ -22,12 +23,13 @@ import {
   outputFormatLabel,
   sourceLabel,
 } from '../utils/format'
-import type { ExecutionResultsResponse } from '../types/api'
+import type { ExecutionResultsResponse, ExecutionStatusResponse } from '../types/api'
 
 const route = useRoute()
 const router = useRouter()
 const appStore = useAppStore()
 const results = ref<ExecutionResultsResponse | null>(null)
+const executionStatus = ref<ExecutionStatusResponse | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
 const busyAction = ref<'excel' | 'template' | 'sharepoint' | 'new' | null>(null)
@@ -36,6 +38,11 @@ const sharePointResponse = ref<Record<string, unknown> | null>(null)
 const sessionId = computed(() => String(route.params.sessionId || ''))
 const session = computed(() => results.value?.session || null)
 const successful = computed(() => Boolean(results.value?.success && session.value?.ready))
+const resultUploadsOnly = computed(() => {
+  const sources = results.value?.context.selectedSources || session.value?.selectedSources || []
+  return sources.length === 1 && sources[0] === 'uploads'
+})
+const resultUploadedFiles = computed(() => executionStatus.value?.sourceSummary?.uploads?.files || [])
 const stopped = computed(() => Boolean(results.value?.stopped || session.value?.stopped))
 const failed = computed(() => Boolean(results.value?.failed || session.value?.failed))
 const hasAnswers = computed(() => {
@@ -72,8 +79,21 @@ const finalLabel = computed(() => {
   return 'Estado final'
 })
 const finalTitle = computed(() => {
-  const selected = session.value?.opportunityTitle || session.value?.project
-  if (selected) return selected
+  if (session.value?.opportunityTitle) return session.value.opportunityTitle
+
+  if (resultUploadsOnly.value) {
+    if (resultUploadedFiles.value.length === 1) {
+      return resultUploadedFiles.value[0]?.name || 'Archivos propios'
+    }
+    if (resultUploadedFiles.value.length > 1) {
+      return `${resultUploadedFiles.value.length} archivos propios`
+    }
+    return 'Archivos propios'
+  }
+
+  const project = session.value?.project
+  if (project && project !== 'uploads' && project !== 'mixed') return project
+
   if (successful.value) return 'Generación completada'
   if (stopped.value) return 'Ejecución detenida'
   if (failed.value) return 'Ejecución con error'
@@ -90,8 +110,12 @@ async function load(): Promise<void> {
   loading.value = true
   error.value = null
   try {
-    const response = await getExecutionResults(sessionId.value)
+    const [response, statusResponse] = await Promise.all([
+      getExecutionResults(sessionId.value),
+      getExecutionStatus(sessionId.value).catch(() => null),
+    ])
     results.value = response
+    executionStatus.value = statusResponse
     if (response.session.terminal) appStore.setActiveSession(null)
   } catch (reason) {
     error.value = getProblemMessage(reason, 'No se ha podido cargar el detalle final de la ejecución.')
@@ -191,9 +215,9 @@ onMounted(() => void load())
       <section class="relative overflow-hidden rounded-3xl bg-gradient-to-br px-6 py-7 text-white shadow-2xl sm:px-8" :class="heroClasses">
         <div class="absolute -right-12 -top-20 h-60 w-60 rounded-full border-[40px] border-white/10"></div>
         <div class="relative flex flex-wrap items-start justify-between gap-6">
-          <div class="max-w-3xl">
+          <div class="min-w-0 max-w-3xl flex-1">
             <StatusBadge :status="session.status" :ready="successful" :failed="failed" :stopped="stopped" />
-            <h2 class="mt-4 text-3xl font-black tracking-tight">{{ finalTitle }}</h2>
+            <h2 class="mt-4 max-w-full break-words text-3xl font-black tracking-tight" style="overflow-wrap:anywhere">{{ finalTitle }}</h2>
             <p class="mt-2 text-sm leading-6 text-white/85">{{ finalDescription }}</p>
             <p class="mt-3 text-sm font-semibold text-white/85">{{ selectedSourcesText }} · {{ results.selection.template || session.template || 'Sin plantilla' }}</p>
             <p class="mt-2 font-mono text-xs text-white/70">{{ session.sessionId }}</p>

@@ -151,16 +151,20 @@ onBeforeUnmount(clearTimer)
       <div v-if="error" class="warning-banner">La última actualización falló: {{ error }}. Se conservaron los datos anteriores.</div>
       <div v-if="status.runtime.stale" class="warning-banner">No se detecta actividad reciente desde hace {{ status.runtime.staleMinutes }} minuto(s). Puedes revisar el log o detener la ejecución.</div>
       <div v-if="session.stopped" class="warning-banner"><strong>Ejecución detenida.</strong> No se lanzarán nuevos batches. Las tareas ya completadas se conservan.</div>
+      <div v-if="session.stopped" class="flex flex-wrap gap-3">
+        <RouterLink to="/new" class="btn-secondary min-h-14 min-w-44 px-6 text-base no-underline">Nueva ejecución</RouterLink>
+        <RouterLink :to="`/results/${session.sessionId}`" class="btn-primary min-h-14 min-w-44 px-6 text-base no-underline">Abrir detalle final</RouterLink>
+      </div>
       <div v-if="session.failed" class="error-banner"><strong>La ejecución terminó con error.</strong> {{ session.error || status.runtime.error || 'Consulta el log para ver el detalle.' }}</div>
 
       <section class="surface-card">
         <div class="flex flex-wrap items-start justify-between gap-4">
-          <div>
+          <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-3">
               <StatusBadge :status="session.status" :ready="session.ready" :failed="session.failed" :stopped="session.stopped" />
               <span class="rounded-full bg-slate-100 px-2.5 py-1 font-mono text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ session.sessionId }}</span>
             </div>
-            <h2 class="mt-4 text-2xl font-black text-slate-950 dark:text-white">{{ executionTitle }}</h2>
+            <h2 class="mt-4 max-w-full break-words text-2xl font-black text-slate-950 dark:text-white" style="overflow-wrap:anywhere">{{ executionTitle }}</h2>
             <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Actualizado {{ formatDate(status.updatedAt || session.updatedAt) }}</p>
           </div>
           <div class="text-right">
@@ -227,7 +231,7 @@ onBeforeUnmount(clearTimer)
         <pre class="mt-5 max-h-[36rem] overflow-auto rounded-2xl bg-slate-950 p-4 text-xs leading-5 text-slate-200">{{ lastLogLines || 'El log todavía no contiene información.' }}</pre>
       </section>
 
-      <div v-if="session.terminal" class="flex flex-wrap justify-end gap-3">
+      <div v-if="session.terminal && !session.stopped" class="flex flex-wrap justify-end gap-3">
         <RouterLink to="/new" class="btn-secondary no-underline">Nueva ejecución</RouterLink>
         <RouterLink :to="`/results/${session.sessionId}`" class="btn-primary no-underline">{{ session.ready ? 'Abrir resultados' : 'Abrir detalle final' }}</RouterLink>
       </div>
