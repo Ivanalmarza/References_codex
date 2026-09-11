@@ -15,9 +15,11 @@ function initials(value: string): string {
 
 function bootstrapUser(data: BootstrapResponse): AppUser | null {
   if (!data.user?.login && !data.user?.displayName && !data.user?.email) return null
+
   const login = data.user.login || data.user.email || data.user.displayName || ''
   const displayName = data.user.displayName || data.user.email || login
   const email = data.user.email || (login.includes('@') ? login : '')
+
   return {
     login,
     displayName,
@@ -40,51 +42,60 @@ export const useAppStore = defineStore('app', () => {
 
   async function initialize(force = false): Promise<void> {
     if (initialized.value && !force) return
+
     loading.value = true
     error.value = null
 
-    // The SPA node injects AXET_CONFIG before the Vue bundle loads.
-    // Use it immediately for the header while the backend bootstrap is resolving.
+    // aXet SPA App injects AXET_CONFIG before Vue starts.
+    // Use that identity immediately; do not block first render on /_auth/user.
     const injected = getInjectedUser()
     if (injected) user.value = injected
 
-    const [bootstrapResult, currentUserResult] = await Promise.allSettled([
-      getBootstrap(),
-      getCurrentUser(),
-    ])
+    try {
+      // Bootstrap is the only request that blocks application initialization.
+      // It provides selectors, active session and the backend-resolved identity.
+      const data = await getBootstrap()
 
-    if (bootstrapResult.status === 'fulfilled') {
-      const data = bootstrapResult.value
       if (!data || data.ok !== true || !data.options) {
         error.value = 'BOOTSTRAP_INVALID_RESPONSE'
       } else {
         bootstrap.value = data
-        if (currentUserResult.status === 'fulfilled') {
-          user.value = currentUserResult.value
-        } else {
-          user.value = bootstrapUser(data) || injected
-        }
+        user.value = bootstrapUser(data) || injected || user.value
       }
-    } else {
+    } catch (reason) {
       const runtimeAuthEnabled = window.AXET_CONFIG?.authEnabled
       error.value = runtimeAuthEnabled === false
         ? 'El nodo SPA está sirviendo la aplicación sin OIDC/Okta habilitado.'
-        : getProblemMessage(bootstrapResult.reason, 'No se ha podido cargar la aplicación.')
-      if (currentUserResult.status === 'fulfilled') user.value = currentUserResult.value
+        : getProblemMessage(reason, 'No se ha podido cargar la aplicación.')
+    } finally {
+      initialized.value = true
+      loading.value = false
     }
+
+    // Verify/refresh the OIDC identity in background. This request must never
+    // keep the loading screen visible after bootstrap has completed.
+    void getCurrentUser()
+      .then((resolvedUser) => {
+        user.value = resolvedUser
+      })
+      .catch(() => {
+        // AXET_CONFIG/bootstrap already provide the identity. A transient
+        // /_auth/user failure is not an application initialization failure.
+      })
 
     if (!user.value && !error.value) {
       error.value = window.AXET_CONFIG?.authEnabled === false
         ? 'El nodo SPA está sirviendo la aplicación sin OIDC/Okta habilitado.'
         : 'No se ha podido resolver el usuario autenticado.'
     }
-
-    initialized.value = true
-    loading.value = false
   }
 
   async function refreshBootstrap(): Promise<void> {
-    bootstrap.value = await getBootstrap()
+    const data = await getBootstrap()
+    bootstrap.value = data
+
+    const resolvedUser = bootstrapUser(data)
+    if (resolvedUser) user.value = resolvedUser
   }
 
   function setActiveSession(session: SessionSummary | null): void {

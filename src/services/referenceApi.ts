@@ -46,6 +46,7 @@ function toAppUser(rawValue: unknown): AppUser | null {
 
   const resolvedDisplayName = displayName || email || login || stableId
   const resolvedLogin = login || email || stableId || resolvedDisplayName
+
   return {
     login: resolvedLogin,
     displayName: resolvedDisplayName,
@@ -64,9 +65,9 @@ export function getInjectedUser(): AppUser | null {
 
 /**
  * Refresh/verify the OIDC session using the SPA deploymentBasePath.
- * Falls back to the injected user if the refresh endpoint is temporarily unavailable.
+ * This is intentionally a short, non-blocking background verification.
  */
-export async function getCurrentUser(): Promise<AppUser> {
+export async function getCurrentUser(timeoutMs = 4_000): Promise<AppUser> {
   const injected = getInjectedUser()
   const deploymentBasePath = getDeploymentBasePath()
   const url = deploymentBasePath ? `${deploymentBasePath}/_auth/user` : '/_auth/user'
@@ -74,9 +75,10 @@ export async function getCurrentUser(): Promise<AppUser> {
   try {
     const response = await axios.get(url, {
       withCredentials: true,
-      timeout: 20_000,
+      timeout: timeoutMs,
       headers: { Accept: 'application/json' },
     })
+
     const raw = response.data?.user || response.data?.data || response.data || {}
     const resolved = toAppUser(raw)
     if (resolved) return resolved
@@ -198,11 +200,11 @@ export async function runManaAction(payload: Record<string, unknown>): Promise<M
 
 function filenameFromDisposition(disposition: string | undefined, fallback: string): string {
   const value = disposition || ''
-  const encoded = value.match(/filename\\*=UTF-8''([^;]+)/i)?.[1]
+  const encoded = value.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
   if (encoded) {
     try { return decodeURIComponent(encoded) } catch { /* continue */ }
   }
-  const quoted = value.match(/filename=\"([^\"]+)\"/i)?.[1]
+  const quoted = value.match(/filename="([^"]+)"/i)?.[1]
   return quoted || fallback
 }
 
