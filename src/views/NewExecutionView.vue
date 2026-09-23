@@ -59,7 +59,7 @@ function setOpportunitySelection(value: typeof opportunitySelection): void {
 }
 
 function validate(): string | null {
-  if (!selectedSources.value.length) return 'Activa al menos una fuente de información.'
+  if (!selectedSources.value.length) return 'Selecciona Oportunidad MANA, Archivos propios o ambas fuentes.'
   if (form.includeProcessed && (!form.unidadProcesado || !form.proyectoProcesado)) {
     return 'Selecciona la unidad y el proyecto procesado.'
   }
@@ -119,7 +119,7 @@ async function submit(): Promise<void> {
     <header>
       <p class="eyebrow">Nueva generación</p>
       <h1 class="page-title mt-2">Configura la referencia</h1>
-      <p class="page-description">Combina una o varias fuentes de información y configura el idioma, la plantilla y el formato de salida.</p>
+      <p class="page-description">Selecciona una oportunidad MANA, sube archivos propios o combina ambas fuentes, y configura el idioma, la plantilla y el formato de salida.</p>
     </header>
 
     <div v-if="store.activeSession && !store.activeSession.terminal" class="warning-banner">
@@ -133,13 +133,13 @@ async function submit(): Promise<void> {
           <div>
             <p class="eyebrow">1 · Fuentes</p>
             <h2 class="section-title mt-1">Selecciona la información de entrada</h2>
-            <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Puedes activar varias fuentes. Si un mismo dato aparece en varias, tendrán prioridad los archivos propios, después la oportunidad y, por último, el proyecto procesado.</p>
+            <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Puedes activar una o ambas fuentes. Si un mismo dato aparece en ambas, tendrán prioridad los archivos propios sobre la oportunidad.</p>
           </div>
           <span class="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">{{ selectedSources.length }} activa(s)</span>
         </div>
 
-        <div class="mt-5 grid gap-4 md:grid-cols-3">
-          <label class="relative rounded-2xl border p-4 transition" :class="form.includeProcessed ? 'border-blue-500 bg-blue-50/70 dark:bg-blue-950/30' : 'border-slate-200 hover:border-slate-300 dark:border-slate-700'">
+        <div class="mt-5 grid gap-4 md:grid-cols-2">
+          <label v-if="false" class="relative rounded-2xl border p-4 transition" :class="form.includeProcessed ? 'border-blue-500 bg-blue-50/70 dark:bg-blue-950/30' : 'border-slate-200 hover:border-slate-300 dark:border-slate-700'">
             <input v-model="form.includeProcessed" type="checkbox" class="absolute right-4 top-4 h-5 w-5 rounded border-slate-300 text-blue-600" />
             <span class="grid h-10 w-10 place-items-center rounded-xl bg-white text-blue-700 shadow-sm dark:bg-slate-900 dark:text-blue-300"><svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v14H4zM8 9h8M8 13h5" /></svg></span>
             <h3 class="mt-4 font-extrabold text-slate-900 dark:text-white">Proyecto procesado</h3>
@@ -162,7 +162,7 @@ async function submit(): Promise<void> {
         </div>
       </section>
 
-      <section v-if="form.includeProcessed" class="surface-card">
+      <section v-if="false && (form.includeProcessed)" class="surface-card">
         <p class="eyebrow">Proyecto procesado</p>
         <h2 class="section-title mt-1">Origen preprocesado</h2>
         <div class="mt-5 grid gap-4 md:grid-cols-2">
@@ -233,7 +233,7 @@ async function submit(): Promise<void> {
 
       <div class="surface-card flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p class="font-extrabold text-slate-900 dark:text-white">{{ selectedSources.length ? `Fuentes: ${selectedSources.map(sourceLabel).join(' + ')}` : 'Selecciona al menos una fuente' }}</p>
+          <p class="font-extrabold text-slate-900 dark:text-white">{{ selectedSources.length ? `Fuentes: ${selectedSources.map(sourceLabel).join(' + ')}` : 'Selecciona Oportunidad MANA, Archivos propios o ambas fuentes' }}</p>
           <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Podrás seguir el progreso de la generación desde la pantalla de ejecución.</p>
         </div>
         <button type="submit" class="btn-primary min-w-52" :disabled="submitting">
