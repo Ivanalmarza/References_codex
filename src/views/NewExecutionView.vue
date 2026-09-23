@@ -25,11 +25,8 @@ const opportunitySelection = reactive({
 })
 
 const form = reactive({
-  includeProcessed: false,
   includeOpportunity: false,
   includeUploads: false,
-  unidadProcesado: '',
-  proyectoProcesado: '',
   idioma: 'Español (ES)',
   plantilla: '',
   sector_outputformat: 'general' as 'general' | 'sector_publico' | 'sector_privado',
@@ -37,11 +34,7 @@ const form = reactive({
 })
 
 const options = computed(() => store.options)
-const processedProjects = computed(() =>
-  options.value?.processedProjectsByUnit?.[form.unidadProcesado] || [],
-)
 const selectedSources = computed(() => [
-  form.includeProcessed ? 'processed' : '',
   form.includeOpportunity ? 'opportunity' : '',
   form.includeUploads ? 'uploads' : '',
 ].filter(Boolean))
@@ -50,19 +43,12 @@ watch(options, (value) => {
   if (!form.plantilla && value?.templates?.length) form.plantilla = value.templates[0]?.value || ''
 }, { immediate: true })
 
-watch(() => form.unidadProcesado, () => {
-  form.proyectoProcesado = ''
-})
-
 function setOpportunitySelection(value: typeof opportunitySelection): void {
   Object.assign(opportunitySelection, value)
 }
 
 function validate(): string | null {
   if (!selectedSources.value.length) return 'Selecciona Oportunidad MANA, Archivos propios o ambas fuentes.'
-  if (form.includeProcessed && (!form.unidadProcesado || !form.proyectoProcesado)) {
-    return 'Selecciona la unidad y el proyecto procesado.'
-  }
   if (form.includeOpportunity && !selectedOpportunity.value?.opportunityId) {
     return 'Selecciona una oportunidad MANA.'
   }
@@ -83,11 +69,13 @@ async function submit(): Promise<void> {
   submitting.value = true
   try {
     const request: ExecutionRequest = {
-      includeProcessed: form.includeProcessed,
+      // Se mantienen estos campos por compatibilidad con el contrato actual de Flows.
+      // El frontend ya no ofrece "Proyecto procesado" como fuente seleccionable.
+      includeProcessed: false,
       includeOpportunity: form.includeOpportunity,
       includeUploads: form.includeUploads,
-      unidadProcesado: form.unidadProcesado,
-      proyectoProcesado: form.proyectoProcesado,
+      unidadProcesado: '',
+      proyectoProcesado: '',
       opportunitySelectionMode: opportunitySelection.mode,
       businessOpportunityIdSearch: opportunitySelection.businessId,
       sector: opportunitySelection.sector || selectedOpportunity.value?.sector || '',
@@ -139,13 +127,6 @@ async function submit(): Promise<void> {
         </div>
 
         <div class="mt-5 grid gap-4 md:grid-cols-2">
-          <label v-if="false" class="relative rounded-2xl border p-4 transition" :class="form.includeProcessed ? 'border-blue-500 bg-blue-50/70 dark:bg-blue-950/30' : 'border-slate-200 hover:border-slate-300 dark:border-slate-700'">
-            <input v-model="form.includeProcessed" type="checkbox" class="absolute right-4 top-4 h-5 w-5 rounded border-slate-300 text-blue-600" />
-            <span class="grid h-10 w-10 place-items-center rounded-xl bg-white text-blue-700 shadow-sm dark:bg-slate-900 dark:text-blue-300"><svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v14H4zM8 9h8M8 13h5" /></svg></span>
-            <h3 class="mt-4 font-extrabold text-slate-900 dark:text-white">Proyecto procesado</h3>
-            <p class="mt-1.5 pr-6 text-sm leading-5 text-slate-500 dark:text-slate-400">Markdowns ya generados por unidad y proyecto.</p>
-          </label>
-
           <label class="relative rounded-2xl border p-4 transition" :class="form.includeOpportunity ? 'border-cyan-500 bg-cyan-50/70 dark:bg-cyan-950/30' : 'border-slate-200 hover:border-slate-300 dark:border-slate-700'">
             <input v-model="form.includeOpportunity" type="checkbox" class="absolute right-4 top-4 h-5 w-5 rounded border-slate-300 text-cyan-600" />
             <span class="grid h-10 w-10 place-items-center rounded-xl bg-white text-cyan-700 shadow-sm dark:bg-slate-900 dark:text-cyan-300"><svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6.5h7l2 2h9v10.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></svg></span>
@@ -159,27 +140,6 @@ async function submit(): Promise<void> {
             <h3 class="mt-4 font-extrabold text-slate-900 dark:text-white">Archivos propios</h3>
             <p class="mt-1.5 pr-6 text-sm leading-5 text-slate-500 dark:text-slate-400">Documentos específicos subidos para esta ejecución.</p>
           </label>
-        </div>
-      </section>
-
-      <section v-if="false && (form.includeProcessed)" class="surface-card">
-        <p class="eyebrow">Proyecto procesado</p>
-        <h2 class="section-title mt-1">Origen preprocesado</h2>
-        <div class="mt-5 grid gap-4 md:grid-cols-2">
-          <div>
-            <label class="field-label" for="processed-unit">Unidad</label>
-            <select id="processed-unit" v-model="form.unidadProcesado" class="form-control">
-              <option value="">Selecciona unidad</option>
-              <option v-for="item in options?.processedUnits || []" :key="item.value" :value="item.value">{{ item.label }}</option>
-            </select>
-          </div>
-          <div>
-            <label class="field-label" for="processed-project">Proyecto</label>
-            <select id="processed-project" v-model="form.proyectoProcesado" class="form-control" :disabled="!form.unidadProcesado">
-              <option value="">Selecciona proyecto</option>
-              <option v-for="item in processedProjects" :key="item.value" :value="item.value">{{ item.label }}</option>
-            </select>
-          </div>
         </div>
       </section>
 
