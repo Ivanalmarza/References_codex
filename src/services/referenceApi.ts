@@ -2,6 +2,8 @@ import axios, { type AxiosResponse } from 'axios'
 import { getApi, getDeploymentBasePath } from './api'
 import type {
   AppUser,
+  AxetAuthSession,
+  AxetProject,
   BootstrapResponse,
   ExecutionAcceptedResponse,
   ExecutionRequest,
@@ -63,32 +65,118 @@ export function getInjectedUser(): AppUser | null {
   return toAppUser(window.AXET_CONFIG?.user || null)
 }
 
-/**
- * Refresh/verify the OIDC session using the SPA deploymentBasePath.
- * This is intentionally a short, non-blocking background verification.
- */
-export async function getCurrentUser(timeoutMs = 4_000): Promise<AppUser> {
-  const injected = getInjectedUser()
+function toAxetProject(value: unknown): AxetProject | null {
+  const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  const id = text(raw.id || raw.projectId || raw.projectCode)
+  const displayName = text(raw.displayName || raw.name || raw.projectName || id)
+  if (!id) return null
+  return { id, displayName: displayName || id }
+}
+
+function authEndpoint(path: 'user' | 'project'): string {
   const deploymentBasePath = getDeploymentBasePath()
-  const url = deploymentBasePath ? `${deploymentBasePath}/_auth/user` : '/_auth/user'
+  return deploymentBasePath ? `${deploymentBasePath}/_auth/${path}` : `/_auth/${path}`
+}
 
+/**
+ * Returns the current aXet OIDC session, including the projects assigned to the
+ * authenticated user and the project currently selected in the server session.
+ */
+export async function getAuthSession(timeoutMs = 10_000): Promise<AxetAuthSession> {
+  const response = await axios.get(authEndpoint('user'), {
+    withCredentials: true,
+    timeout: timeoutMs,
+    headers: { Accept: 'application/json' },
+  })
+
+  const raw = response.data?.data || response.data || {}
+  const rawUser = raw.user || raw
+  const user = toAppUser(rawUser)
+  const axetProjects = Array.isArray(raw.axetProjects)
+    ? raw.axetProjects.map(toAxetProject).filter((item): item is AxetProject => Boolean(item))
+    : []
+  const axetProject = toAxetProject(raw.axetProject)
+
+  return {
+    authenticated: raw.authenticated !== false && Boolean(user),
+    user,
+    axetUserId: text(raw.axetUserId || rawUser.axetUserId) || user?.axetUserId || null,
+    axetProjects,
+    axetProject,
+  }
+}
+
+/** Compatibility helper for callers that only need the authenticated identity. */
+export async function getCurrentUser(timeoutMs = 10_000): Promise<AppUser> {
   try {
-    const response = await axios.get(url, {
-      withCredentials: true,
-      timeout: timeoutMs,
-      headers: { Accept: 'application/json' },
-    })
-
-    const raw = response.data?.user || response.data?.data || response.data || {}
-    const resolved = toAppUser(raw)
-    if (resolved) return resolved
+    const session = await getAuthSession(timeoutMs)
+    if (session.user) return session.user
   } catch (error) {
+    const injected = getInjectedUser()
     if (injected) return injected
     throw error
   }
 
+  const injected = getInjectedUser()
   if (injected) return injected
   throw new Error('AUTH_USER_EMPTY')
+}
+
+interface ProjectSelectionForm {
+  url: string
+  csrf: string
+}
+
+async function getProjectSelectionForm(timeoutMs = 10_000): Promise<ProjectSelectionForm> {
+  const url = authEndpoint('project')
+  const response = await axios.get<string>(url, {
+    withCredentials: true,
+    timeout: timeoutMs,
+    headers: { Accept: 'text/html' },
+    responseType: 'text',
+  })
+
+  const html = String(response.data || '')
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const form = doc.querySelector('form')
+  const csrf = (form?.querySelector('input[name="_csrf"]') as HTMLInputElement | null)?.value?.trim() || ''
+  const action = form?.getAttribute('action')?.trim() || url
+
+  if (!csrf) throw new Error('AXET_PROJECT_CSRF_NOT_FOUND')
+
+  return {
+    url: new URL(action, window.location.origin).toString(),
+    csrf,
+  }
+}
+
+/**
+ * Selects one of the projects returned by /_auth/user using the native
+ * axet-spa-app project endpoint. The server session remains the source of truth.
+ */
+export async function selectAxetProject(projectId: string, timeoutMs = 15_000): Promise<AxetAuthSession> {
+  const normalizedProjectId = text(projectId)
+  if (!normalizedProjectId) throw new Error('AXET_PROJECT_ID_REQUIRED')
+
+  const form = await getProjectSelectionForm(timeoutMs)
+  const body = new URLSearchParams()
+  body.set('_csrf', form.csrf)
+  body.set('projectId', normalizedProjectId)
+
+  await axios.post(form.url, body.toString(), {
+    withCredentials: true,
+    timeout: timeoutMs,
+    headers: {
+      Accept: 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
+      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+    },
+  })
+
+  const session = await getAuthSession(timeoutMs)
+  if (session.axetProject?.id !== normalizedProjectId) {
+    throw new Error('AXET_PROJECT_SELECTION_NOT_APPLIED')
+  }
+  return session
 }
 
 export async function getBootstrap(): Promise<BootstrapResponse> {

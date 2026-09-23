@@ -1,8 +1,8 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { getBootstrap, getCurrentUser, getInjectedUser } from '../services/referenceApi'
+import { getAuthSession, getBootstrap, getInjectedUser, selectAxetProject } from '../services/referenceApi'
 import { getProblemMessage } from '../services/api'
-import type { AppUser, BootstrapResponse, SessionSummary } from '../types/api'
+import type { AppUser, AxetAuthSession, AxetProject, BootstrapResponse, SessionSummary } from '../types/api'
 
 function initials(value: string): string {
   return value
@@ -31,77 +31,118 @@ function bootstrapUser(data: BootstrapResponse): AppUser | null {
 }
 
 export const useAppStore = defineStore('app', () => {
+  const sessionReady = ref(false)
   const initialized = ref(false)
   const loading = ref(false)
+  const selectingProject = ref(false)
   const error = ref<string | null>(null)
+  const projectError = ref<string | null>(null)
   const bootstrap = ref<BootstrapResponse | null>(null)
   const user = ref<AppUser | null>(null)
+  const axetProjects = ref<AxetProject[]>([])
+  const axetProject = ref<AxetProject | null>(null)
 
   const activeSession = computed<SessionSummary | null>(() => bootstrap.value?.active || null)
   const options = computed(() => bootstrap.value?.options || null)
+  const needsProjectSelection = computed(() =>
+    sessionReady.value && !axetProject.value && axetProjects.value.length > 0 && !error.value,
+  )
+
+  function applyAuthSession(session: AxetAuthSession): void {
+    const applicationRoles = user.value?.roles || []
+    if (session.user) {
+      user.value = {
+        ...session.user,
+        roles: applicationRoles.length ? applicationRoles : (session.user.roles || []),
+      }
+    }
+    axetProjects.value = session.axetProjects
+    axetProject.value = session.axetProject
+  }
+
+  async function loadBootstrap(): Promise<void> {
+    const data = await getBootstrap()
+    if (!data || data.ok !== true || !data.options) throw new Error('BOOTSTRAP_INVALID_RESPONSE')
+
+    bootstrap.value = data
+    const resolvedUser = bootstrapUser(data)
+    if (resolvedUser) {
+      user.value = {
+        ...resolvedUser,
+        roles: resolvedUser.roles?.length ? resolvedUser.roles : (user.value?.roles || []),
+      }
+    }
+    initialized.value = true
+  }
 
   async function initialize(force = false): Promise<void> {
     if (initialized.value && !force) return
+    if (sessionReady.value && needsProjectSelection.value && !force) return
 
     loading.value = true
     error.value = null
+    projectError.value = null
+    if (force) initialized.value = false
 
-    // aXet SPA App injects AXET_CONFIG before Vue starts.
-    // Use that identity immediately; do not block first render on /_auth/user.
     const injected = getInjectedUser()
     if (injected) user.value = injected
 
     try {
-      // Bootstrap is the only request that blocks application initialization.
-      // It provides selectors, active session and the backend-resolved identity.
-      const data = await getBootstrap()
+      const session = await getAuthSession()
+      sessionReady.value = true
+      applyAuthSession(session)
 
-      if (!data || data.ok !== true || !data.options) {
-        error.value = 'BOOTSTRAP_INVALID_RESPONSE'
-      } else {
-        bootstrap.value = data
-        user.value = bootstrapUser(data) || injected || user.value
+      if (!session.authenticated || !session.user) {
+        throw new Error('No se ha podido resolver el usuario autenticado.')
       }
+
+      if (!session.axetProject) {
+        if (session.axetProjects.length > 0) return
+        throw new Error('No tienes proyectos aXet disponibles para esta aplicación.')
+      }
+
+      await loadBootstrap()
     } catch (reason) {
+      sessionReady.value = true
       const runtimeAuthEnabled = window.AXET_CONFIG?.authEnabled
       error.value = runtimeAuthEnabled === false
         ? 'El nodo SPA está sirviendo la aplicación sin OIDC/Okta habilitado.'
         : getProblemMessage(reason, 'No se ha podido cargar la aplicación.')
     } finally {
-      initialized.value = true
       loading.value = false
     }
+  }
 
-    // Verify/refresh the OIDC identity in background. This request must never
-    // keep the loading screen visible after bootstrap has completed.
-    void getCurrentUser()
-      .then((resolvedUser) => {
-        // Application roles come from /references-api/bootstrap, which resolves
-        // deptapp-user-login-okta. OIDC identity refresh must not erase them.
-        const applicationRoles = user.value?.roles || []
-        user.value = {
-          ...resolvedUser,
-          roles: applicationRoles.length ? applicationRoles : (resolvedUser.roles || []),
-        }
-      })
-      .catch(() => {
-        // AXET_CONFIG/bootstrap already provide the identity. A transient
-        // /_auth/user failure is not an application initialization failure.
-      })
+  async function selectProject(projectId: string): Promise<void> {
+    if (selectingProject.value) return
 
-    if (!user.value && !error.value) {
-      error.value = window.AXET_CONFIG?.authEnabled === false
-        ? 'El nodo SPA está sirviendo la aplicación sin OIDC/Okta habilitado.'
-        : 'No se ha podido resolver el usuario autenticado.'
+    const allowed = axetProjects.value.some((project) => project.id === projectId)
+    if (!allowed) {
+      projectError.value = 'El proyecto seleccionado no está disponible para tu usuario.'
+      return
+    }
+
+    selectingProject.value = true
+    projectError.value = null
+    error.value = null
+
+    try {
+      const session = await selectAxetProject(projectId)
+      applyAuthSession(session)
+
+      loading.value = true
+      await loadBootstrap()
+    } catch (reason) {
+      projectError.value = getProblemMessage(reason, 'No se ha podido seleccionar el proyecto.')
+    } finally {
+      loading.value = false
+      selectingProject.value = false
     }
   }
 
   async function refreshBootstrap(): Promise<void> {
-    const data = await getBootstrap()
-    bootstrap.value = data
-
-    const resolvedUser = bootstrapUser(data)
-    if (resolvedUser) user.value = resolvedUser
+    if (!axetProject.value) return
+    await loadBootstrap()
   }
 
   function setActiveSession(session: SessionSummary | null): void {
@@ -109,14 +150,21 @@ export const useAppStore = defineStore('app', () => {
   }
 
   return {
+    sessionReady,
     initialized,
     loading,
+    selectingProject,
     error,
+    projectError,
     bootstrap,
     user,
+    axetProjects,
+    axetProject,
     activeSession,
     options,
+    needsProjectSelection,
     initialize,
+    selectProject,
     refreshBootstrap,
     setActiveSession,
   }

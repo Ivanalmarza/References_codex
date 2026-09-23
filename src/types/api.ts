@@ -12,6 +12,19 @@ export interface AppUser {
   roles: string[]
 }
 
+export interface AxetProject {
+  id: string
+  displayName: string
+}
+
+export interface AxetAuthSession {
+  authenticated: boolean
+  user: AppUser | null
+  axetUserId: string | null
+  axetProjects: AxetProject[]
+  axetProject: AxetProject | null
+}
+
 export interface SessionTasks {
   completed: number
   total: number

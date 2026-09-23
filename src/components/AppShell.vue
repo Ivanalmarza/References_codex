@@ -54,6 +54,15 @@ function isCurrent(item: { name: string }): boolean {
         </div>
 
         <div class="flex items-center gap-2 sm:gap-3">
+          <div
+            v-if="appStore.axetProject"
+            class="hidden items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900 md:flex"
+            :title="`Proyecto aXet: ${appStore.axetProject.displayName}`"
+          >
+            <svg viewBox="0 0 24 24" class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6.5h7l2 2h9v10.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></svg>
+            <span class="max-w-40 truncate font-bold text-slate-600 dark:text-slate-300">{{ appStore.axetProject.displayName }}</span>
+          </div>
+
           <RouterLink
             v-if="active"
             :to="active.ready ? `/results/${active.sessionId}` : `/execution/${active.sessionId}`"
