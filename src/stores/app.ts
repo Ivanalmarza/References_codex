@@ -76,7 +76,13 @@ export const useAppStore = defineStore('app', () => {
     // keep the loading screen visible after bootstrap has completed.
     void getCurrentUser()
       .then((resolvedUser) => {
-        user.value = resolvedUser
+        // Application roles come from /references-api/bootstrap, which resolves
+        // deptapp-user-login-okta. OIDC identity refresh must not erase them.
+        const applicationRoles = user.value?.roles || []
+        user.value = {
+          ...resolvedUser,
+          roles: applicationRoles.length ? applicationRoles : (resolvedUser.roles || []),
+        }
       })
       .catch(() => {
         // AXET_CONFIG/bootstrap already provide the identity. A transient

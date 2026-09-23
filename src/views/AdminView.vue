@@ -225,7 +225,7 @@ onMounted(() => void loadAdmin())
 
     <div class="flex gap-2 rounded-2xl border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900">
       <button class="btn flex-1" :class="activeTab === 'files' ? 'btn-primary' : 'btn-ghost'" @click="selectTab('files')">Admin files</button>
-      <button class="btn flex-1" :class="activeTab === 'users' ? 'btn-primary' : 'btn-ghost'" @click="selectTab('users')">Usuarios Okta</button>
+      <button class="btn flex-1" :class="activeTab === 'users' ? 'btn-primary' : 'btn-ghost'" @click="selectTab('users')">Usuarios y permisos</button>
     </div>
 
     <template v-if="activeTab === 'files'">
@@ -318,24 +318,23 @@ onMounted(() => void loadAdmin())
     <template v-else>
       <section class="surface-card">
         <div class="flex flex-wrap items-start justify-between gap-3">
-          <div><p class="eyebrow">User Okta Entity</p><h2 class="section-title mt-1">Búsqueda de usuarios</h2><p class="mt-2 text-sm text-slate-500">Consulta la misma colección <code>deptapp-user-login-okta</code> usada por los formularios antiguos.</p></div>
-          <button class="btn-primary" @click="openUser()">Nuevo usuario</button>
+          <div><p class="eyebrow">Usuarios</p><h2 class="section-title mt-1">Usuarios y permisos</h2><p class="mt-2 text-sm text-slate-500">Los usuarios se registran automáticamente la primera vez que acceden. Desde aquí puedes conceder o retirar el acceso a Administración. Los cambios se aplican cuando el usuario recarga la aplicación.</p></div>
         </div>
         <form class="mt-5 grid gap-3 md:grid-cols-4" @submit.prevent="loadUsers(true)">
           <input v-model="filters.userId" class="form-control" placeholder="User Id" />
           <input v-model="filters.userName" class="form-control" placeholder="User Name" />
           <input v-model="filters.userMail" class="form-control" placeholder="User Mail" />
           <select v-model="filters.roles" class="form-control" multiple><option v-for="role in roles" :key="role.value" :value="role.value">{{ role.label }}</option></select>
-          <button class="btn-primary md:col-span-1" :disabled="usersLoading">{{ usersLoading ? 'Buscando...' : 'Search' }}</button>
+          <button class="btn-primary md:col-span-1" :disabled="usersLoading">{{ usersLoading ? 'Buscando...' : 'Buscar' }}</button>
         </form>
       </section>
 
       <section class="surface-card !p-0 overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full min-w-[760px] text-left text-sm">
-            <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900"><tr><th class="px-5 py-3">User Id</th><th class="px-5 py-3">User Name</th><th class="px-5 py-3">User Mail</th><th class="px-5 py-3">Roles</th><th class="px-5 py-3 text-right">Acciones</th></tr></thead>
+            <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900"><tr><th class="px-5 py-3">User Id</th><th class="px-5 py-3">User Name</th><th class="px-5 py-3">User Mail</th><th class="px-5 py-3">Acceso</th><th class="px-5 py-3 text-right">Acciones</th></tr></thead>
             <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
-              <tr v-for="user in users" :key="user.recordId || user.userId"><td class="px-5 py-3 font-bold">{{ user.userId }}</td><td class="px-5 py-3">{{ user.userName }}</td><td class="px-5 py-3">{{ user.userMail }}</td><td class="px-5 py-3"><span class="text-xs">{{ user.roles.join(', ') }}</span></td><td class="px-5 py-3"><div class="flex justify-end gap-2"><button class="btn-secondary" @click="openUser(user)">Edit</button><button class="btn-secondary text-red-700" @click="deleteUser(user)">Delete</button></div></td></tr>
+              <tr v-for="user in users" :key="user.recordId || user.userId"><td class="px-5 py-3 font-bold">{{ user.userId }}</td><td class="px-5 py-3">{{ user.userName }}</td><td class="px-5 py-3">{{ user.userMail }}</td><td class="px-5 py-3"><span class="text-xs font-semibold">{{ user.roles.some((role) => /(^|_)ADMIN$/i.test(String(role))) ? 'Administrador' : 'Usuario' }}</span></td><td class="px-5 py-3"><div class="flex justify-end gap-2"><button class="btn-secondary" @click="openUser(user)">Permisos</button><button class="btn-secondary text-red-700" @click="deleteUser(user)">Eliminar</button></div></td></tr>
               <tr v-if="!usersLoading && !users.length"><td colspan="5" class="px-5 py-10 text-center text-slate-500">No hay usuarios para los filtros indicados.</td></tr>
             </tbody>
           </table>
@@ -345,14 +344,14 @@ onMounted(() => void loadAdmin())
 
       <div v-if="userEditor" class="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4" @click.self="userEditor = null">
         <section class="surface-card w-full max-w-2xl">
-          <div class="flex items-center justify-between"><div><p class="eyebrow">User Okta Details</p><h2 class="section-title mt-1">{{ userEditor.isNew ? 'Nuevo usuario' : 'Editar usuario' }}</h2></div><button class="btn-ghost" @click="userEditor = null">✕</button></div>
+          <div class="flex items-center justify-between"><div><p class="eyebrow">Permisos de usuario</p><h2 class="section-title mt-1">Gestionar acceso</h2></div><button class="btn-ghost" @click="userEditor = null">✕</button></div>
           <div class="mt-5 grid gap-4 sm:grid-cols-2">
-            <div><label class="field-label">User Id</label><input v-model="userEditor.userId" class="form-control" /></div>
-            <div><label class="field-label">User Mail</label><input v-model="userEditor.userMail" class="form-control" /></div>
-            <div><label class="field-label">User Name</label><input v-model="userEditor.userName" class="form-control" /></div>
-            <div><label class="field-label">Roles</label><select v-model="userEditor.roles" class="form-control" multiple><option v-for="role in roles" :key="role.value" :value="role.value">{{ role.label }}</option></select></div>
+            <div><label class="field-label">User Id</label><input v-model="userEditor.userId" class="form-control" :disabled="!userEditor.isNew" /></div>
+            <div><label class="field-label">User Mail</label><input v-model="userEditor.userMail" class="form-control" :disabled="!userEditor.isNew" /></div>
+            <div><label class="field-label">User Name</label><input v-model="userEditor.userName" class="form-control" :disabled="!userEditor.isNew" /></div>
+            <div><label class="field-label">Permisos</label><select v-model="userEditor.roles" class="form-control" multiple><option v-for="role in roles" :key="role.value" :value="role.value">{{ role.label }}</option></select></div>
           </div>
-          <div class="mt-6 flex justify-end gap-3"><button class="btn-secondary" @click="userEditor = null">Cancel</button><button class="btn-primary" @click="saveUser">Save</button></div>
+          <div class="mt-6 flex justify-end gap-3"><button class="btn-secondary" @click="userEditor = null">Cancelar</button><button class="btn-primary" @click="saveUser">Guardar</button></div>
         </section>
       </div>
     </template>

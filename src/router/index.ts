@@ -1,6 +1,6 @@
 import { nextTick } from 'vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
-import { getInjectedUser } from '../services/referenceApi'
+import { useAppStore } from '../stores/app'
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -16,15 +16,19 @@ const router = createRouter({
   ],
 })
 
-function hasAdminRole(): boolean {
-  const roles = getInjectedUser()?.roles || []
+function hasAdminRole(roles: string[] = []): boolean {
   return roles.some((role) =>
     /(^|_)SUPER_ADMIN$|(^|_)ADMIN$/i.test(String(role)),
   )
 }
 
-router.beforeEach((to) => {
-  if (to.meta.adminOnly === true && !hasAdminRole()) {
+router.beforeEach(async (to) => {
+  if (to.meta.adminOnly !== true) return true
+
+  const appStore = useAppStore()
+  if (!appStore.initialized) await appStore.initialize()
+
+  if (!hasAdminRole(appStore.user?.roles || [])) {
     return { name: 'dashboard' }
   }
   return true
