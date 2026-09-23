@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import BrandMark from './BrandMark.vue'
 
@@ -11,6 +11,8 @@ const themeStore = useThemeStore()
 const route = useRoute()
 const mobileOpen = ref(false)
 const adminOpen = ref(false)
+const userMenuOpen = ref(false)
+const userMenuRef = ref<HTMLElement | null>(null)
 
 const publicItems = [
   { name: 'dashboard', label: 'Inicio', path: '/', icon: 'home' },
@@ -38,6 +40,36 @@ function isCurrent(item: { name: string }): boolean {
   if (item.name === 'dashboard' && route.name === 'results') return true
   return route.name === item.name
 }
+
+function logout(): void {
+  userMenuOpen.value = false
+  const base = String(
+    window.AXET_CONFIG?.deploymentBasePath ||
+    window.AXET_CONFIG?.basePath ||
+    '',
+  ).replace(/\/+$/, '')
+
+  window.location.assign(`${base}/_auth/logout`)
+}
+
+function closeUserMenu(event: MouseEvent): void {
+  const target = event.target as Node | null
+  if (target && !userMenuRef.value?.contains(target)) userMenuOpen.value = false
+}
+
+function handleKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') userMenuOpen.value = false
+}
+
+onMounted(() => {
+  document.addEventListener('click', closeUserMenu)
+  document.addEventListener('keydown', handleKeydown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', closeUserMenu)
+  document.removeEventListener('keydown', handleKeydown)
+})
 </script>
 
 <template>
@@ -81,11 +113,56 @@ function isCurrent(item: { name: string }): boolean {
             </svg>
           </button>
 
-          <div class="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900">
-            <span class="grid h-8 w-8 place-items-center rounded-lg bg-[#0b2f55] text-xs font-black text-white">{{ user?.initials || 'U' }}</span>
-            <div class="hidden min-w-0 sm:block">
-              <p class="max-w-48 truncate text-xs font-extrabold text-slate-900 dark:text-white">{{ user?.displayName || 'Usuario' }}</p>
-              <p class="max-w-48 truncate text-[11px] text-slate-500 dark:text-slate-400">{{ user?.email || user?.login || '' }}</p>
+          <div ref="userMenuRef" class="relative">
+            <button
+              type="button"
+              class="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-left transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+              :aria-expanded="userMenuOpen"
+              aria-haspopup="menu"
+              @click="userMenuOpen = !userMenuOpen"
+            >
+              <span class="grid h-8 w-8 place-items-center rounded-lg bg-[#0b2f55] text-xs font-black text-white">{{ user?.initials || 'U' }}</span>
+              <div class="hidden min-w-0 sm:block">
+                <p class="max-w-48 truncate text-xs font-extrabold text-slate-900 dark:text-white">{{ user?.displayName || 'Usuario' }}</p>
+                <p class="max-w-48 truncate text-[11px] text-slate-500 dark:text-slate-400">{{ user?.email || user?.login || '' }}</p>
+              </div>
+              <svg
+                viewBox="0 0 24 24"
+                class="hidden h-4 w-4 shrink-0 text-slate-400 transition-transform sm:block"
+                :class="{ 'rotate-180': userMenuOpen }"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+
+            <div
+              v-if="userMenuOpen"
+              class="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/15 dark:border-slate-700 dark:bg-slate-900"
+              role="menu"
+            >
+              <div class="border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+                <p class="truncate text-sm font-extrabold text-slate-900 dark:text-white">{{ user?.displayName || 'Usuario' }}</p>
+                <p class="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{{ user?.email || user?.login || '' }}</p>
+                <p v-if="appStore.axetProject" class="mt-2 flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6.5h7l2 2h9v10.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /></svg>
+                  <span class="truncate">{{ appStore.axetProject.displayName }}</span>
+                </p>
+              </div>
+
+              <div class="p-2">
+                <button
+                  type="button"
+                  class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-red-600 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30"
+                  role="menuitem"
+                  @click="logout"
+                >
+                  <svg viewBox="0 0 24 24" class="h-4.5 w-4.5" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5M14 8l4 4-4 4M9 12h9" /></svg>
+                  Cerrar sesión
+                </button>
+              </div>
             </div>
           </div>
         </div>
